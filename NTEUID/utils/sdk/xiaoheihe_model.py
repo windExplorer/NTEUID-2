@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os.path
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import Field, BaseModel, ConfigDict, ValidationError, field_validator
 
@@ -43,7 +45,12 @@ class GachaRecordItem(_XiaoheiheModel):
     name: str = Field(description="物品名称")
     img: str = Field(description="物品图标 URL")
     timestamp: int = Field(description="抽中 unix 秒")
-    diff: int = Field(description="距离上个 S 的抽数（保底差值）")
+    diff: int = Field(description="本次出货所用抽数（距上一个 S 的间隔，越大越非）")
+
+    @property
+    def item_id(self) -> str:
+        stem = os.path.splitext(urlparse(self.img).path.rsplit("/", 1)[-1])[0]
+        return stem or self.name
 
 
 class GachaPoolRecord(_XiaoheiheModel):
