@@ -137,6 +137,11 @@ class GuideMsg:
     EMPTY = "角色【{char_name}】暂无攻略图"
 
 
+class CatalogMsg:
+    CHAR_NOT_FOUND = "未找到角色【{char_name}】，请检查名称"
+    EMPTY = "角色【{char_name}】暂无图鉴"
+
+
 class AliasMsg:
     EMPTY_NAME_OR_ALIAS = "名称或别名不能为空"
     INVALID_ACTION = "无效的操作，请检查操作"

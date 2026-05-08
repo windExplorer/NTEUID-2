@@ -17,6 +17,8 @@ RESOURCE_PATH = MAIN_PATH / "resource"
 STATIC_RESOURCE_PATH = Path(__file__).parents[2] / "resource"
 CHAR_META_PATH = STATIC_RESOURCE_PATH / "char_meta.json"
 GUIDE_PATH = STATIC_RESOURCE_PATH / "guide"
+CATALOG_PATH = STATIC_RESOURCE_PATH / "catalog"
+CATALOG_CHAR_PATH = CATALOG_PATH / "char"
 
 # 别名（用户态可写，与静态 CHAR_META_PATH 分离）
 ALIAS_PATH = MAIN_PATH / "alias"

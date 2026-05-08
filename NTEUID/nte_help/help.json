@@ -143,7 +143,7 @@
             {
                 "name": "配队推荐",
                 "desc": "对应角色的官方配队推荐图（异环 webview 1:1 还原）",
-                "eg": "小吱配队",
+                "eg": "早雾配队",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
@@ -151,7 +151,15 @@
             {
                 "name": "角色攻略",
                 "desc": "零号攻略组的角色攻略图",
-                "eg": "小吱攻略",
+                "eg": "早雾攻略",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "角色图鉴",
+                "desc": "发送角色技能与觉醒图鉴图",
+                "eg": "早雾图鉴",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
