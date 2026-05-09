@@ -17,7 +17,7 @@ from .character_card import draw_character_card_img
 from ..utils.database import NTEUser
 from .realestate_card import draw_realestate_img
 from .achievement_card import draw_achievement_img
-from ..utils.name_convert import alias_to_char_name, char_name_to_char_id
+from ..utils.name_convert import CHARS
 from ..utils.sdk.tajiduo_model import CharacterDetail
 
 
@@ -50,10 +50,10 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
     if not char_name:
         return await send_nte_notify(bot, ev, RoleMsg.usage_detail())
 
-    std_char_name = alias_to_char_name(char_name)
+    std_char_name = CHARS.name_of(char_name)
     if not std_char_name:
         return await send_nte_notify(bot, ev, RoleMsg.CHAR_NOT_FOUND)
-    char_id = char_name_to_char_id(std_char_name)
+    char_id = CHARS.id_of(std_char_name)
     if not char_id:
         return await send_nte_notify(bot, ev, RoleMsg.CHAR_NOT_FOUND)
 

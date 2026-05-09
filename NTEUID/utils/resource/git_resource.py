@@ -157,9 +157,9 @@ async def init_resources() -> None:
     result = await update_resources(is_force=is_repo, silent=False)
     if result["success"]:
         # 覆盖首启时插件导入留下的空 dict
-        from ..name_convert import load_char_meta
+        from ..name_convert import reload_all
 
-        load_char_meta()
+        reload_all()
 
 
 async def start_resources() -> None:

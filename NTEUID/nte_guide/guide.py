@@ -10,14 +10,14 @@ from gsuid_core.models import Event
 from gsuid_core.utils.image.convert import convert_img
 
 from ..utils.msgs import GuideMsg, send_nte_notify
-from ..utils.name_convert import alias_to_char_name, char_name_to_char_id
+from ..utils.name_convert import CHARS
 from ..nte_config.nte_config import NTEConfig
 from ..utils.resource.RESOURCE_PATH import GUIDE_PATH
 
 
 async def get_guide(bot: Bot, ev: Event, char_name: str) -> None:
-    real_name = alias_to_char_name(char_name)
-    if not real_name or not char_name_to_char_id(real_name):
+    real_name = CHARS.name_of(char_name)
+    if not real_name or not CHARS.id_of(real_name):
         return await send_nte_notify(bot, ev, GuideMsg.CHAR_NOT_FOUND.format(char_name=char_name))
 
     logger.debug(f"[NTE攻略] 开始获取 {real_name} 图鉴")

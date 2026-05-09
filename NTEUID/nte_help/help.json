@@ -163,15 +163,23 @@
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
+            },
+            {
+                "name": "武器图鉴",
+                "desc": "发送武器（弧盘）图鉴图，与角色图鉴共用命令",
+                "eg": "勿忘伞图鉴",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
             }
         ]
     },
     "角色别名": {
-        "desc": "查看 / 添加 / 删除角色查询时使用的别名",
+        "desc": "查看 / 添加 / 删除角色或武器查询时使用的别名",
         "data": [
             {
                 "name": "角色别名列表",
-                "desc": "查看某角色当前的全部别名",
+                "desc": "查看某角色或武器当前的全部别名",
                 "eg": "小吱别名",
                 "need_ck": false,
                 "need_sk": false,
@@ -179,7 +187,7 @@
             },
             {
                 "name": "添加别名",
-                "desc": "为指定角色添加查询别名",
+                "desc": "为指定角色或武器添加查询别名",
                 "eg": "添加小吱别名吱吱",
                 "need_ck": false,
                 "need_sk": false,
@@ -187,8 +195,16 @@
             },
             {
                 "name": "删除别名",
-                "desc": "删除指定角色的某个别名",
+                "desc": "删除指定角色或武器的某个别名",
                 "eg": "删除小吱别名吱吱",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "武器别名列表",
+                "desc": "查看某武器（弧盘）当前的全部别名",
+                "eg": "勿忘伞别名",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false

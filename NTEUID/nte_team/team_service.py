@@ -7,7 +7,7 @@ from gsuid_core.models import Event
 from .team_card import draw_team_img
 from ..utils.msgs import TeamMsg, send_nte_notify
 from ..utils.sdk.tajiduo import tajiduo_web
-from ..utils.name_convert import alias_to_char_name, char_name_to_char_id
+from ..utils.name_convert import CHARS
 from ..utils.sdk.tajiduo_model import TajiduoError, TeamRecommendation
 
 
@@ -18,7 +18,7 @@ def _filter_recommendations(
 ) -> list[TeamRecommendation]:
     result: list[TeamRecommendation] = []
     for recommendation in recommendations:
-        recommendation_name = alias_to_char_name(recommendation.name)
+        recommendation_name = CHARS.name_of(recommendation.name)
         if recommendation_name is None:
             recommendation_name = recommendation.name
         if recommendation.id == char_id or recommendation_name == std_char_name:
@@ -30,10 +30,10 @@ async def run_team(bot: Bot, ev: Event, char_name: str) -> None:
     if not char_name:
         return await send_nte_notify(bot, ev, TeamMsg.usage_detail())
 
-    std_char_name = alias_to_char_name(char_name)
+    std_char_name = CHARS.name_of(char_name)
     if not std_char_name:
         return await send_nte_notify(bot, ev, TeamMsg.CHAR_NOT_FOUND)
-    char_id = char_name_to_char_id(std_char_name)
+    char_id = CHARS.id_of(std_char_name)
     if not char_id:
         return await send_nte_notify(bot, ev, TeamMsg.CHAR_NOT_FOUND)
 

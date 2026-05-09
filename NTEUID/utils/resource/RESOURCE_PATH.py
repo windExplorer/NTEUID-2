@@ -16,13 +16,16 @@ PLAYERINFO_PATH = MAIN_PATH / "playerinfo"
 RESOURCE_PATH = MAIN_PATH / "resource"
 STATIC_RESOURCE_PATH = Path(__file__).parents[2] / "resource"
 CHAR_META_PATH = STATIC_RESOURCE_PATH / "char_meta.json"
+FORK_META_PATH = STATIC_RESOURCE_PATH / "fork_meta.json"
 GUIDE_PATH = STATIC_RESOURCE_PATH / "guide"
 CATALOG_PATH = STATIC_RESOURCE_PATH / "catalog"
 CATALOG_CHAR_PATH = CATALOG_PATH / "char"
+CATALOG_FORK_PATH = CATALOG_PATH / "fork"
 
-# 别名（用户态可写，与静态 CHAR_META_PATH 分离）
+# 别名（用户态可写，与静态 *_META_PATH 分离）
 ALIAS_PATH = MAIN_PATH / "alias"
 USER_CHAR_ALIAS_PATH = ALIAS_PATH / "char_alias.json"
+USER_FORK_ALIAS_PATH = ALIAS_PATH / "fork_alias.json"
 
 # 角色
 ROLE_PATH = MAIN_PATH / "role"
