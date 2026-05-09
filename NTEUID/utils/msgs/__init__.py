@@ -147,6 +147,7 @@ class GuideMsg:
 class CatalogMsg:
     NOT_FOUND = "未找到【{name}】对应的角色或武器，请检查名称"
     EMPTY = "【{name}】暂无图鉴"
+    LIST_EMPTY = "暂无名册资源，请先发送【下载全部资源】"
 
 
 class AliasMsg:

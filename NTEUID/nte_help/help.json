@@ -171,6 +171,14 @@
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
+            },
+            {
+                "name": "角色/武器列表",
+                "desc": "发送全角色/武器名册一览图",
+                "eg": "角色/武器列表",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
             }
         ]
     },
