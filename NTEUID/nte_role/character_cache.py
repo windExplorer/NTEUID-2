@@ -13,20 +13,21 @@ from ..utils.sdk.tajiduo_model import CharacterDetail
 from ..utils.resource.RESOURCE_PATH import PLAYERINFO_PATH
 
 
-def get_role_cache_path(role_id: str) -> Path:
+def get_character_cache_path(role_id: str) -> Path:
+    """缓存文件按 role_id 命名（一份玩家存档对应一份 character 列表快照）。"""
     return PLAYERINFO_PATH / f"{role_id}.json"
 
 
-async def save_role_characters_cache(role_id: str, payload: list[dict[str, Any]]) -> Path:
-    path = get_role_cache_path(role_id)
+async def save_character_cache(role_id: str, payload: list[dict[str, Any]]) -> Path:
+    path = get_character_cache_path(role_id)
     async with aiofiles.open(path, "w", encoding="utf-8") as file:
         await file.write(json.dumps(payload, ensure_ascii=False, indent=2))
     return path
 
 
-async def load_role_characters_cache(role_id: str) -> list[CharacterDetail]:
+async def load_character_cache(role_id: str) -> list[CharacterDetail]:
     """读 cache 并解析成 CharacterDetail 列表；首次跑、文件损坏、模型不兼容都返回空列表。"""
-    path = get_role_cache_path(role_id)
+    path = get_character_cache_path(role_id)
     if not path.exists():
         return []
 

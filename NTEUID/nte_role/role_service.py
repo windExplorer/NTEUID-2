@@ -5,16 +5,16 @@ from gsuid_core.models import Event
 
 from ..utils.at import AtTarget, resolve_at_target
 from .role_card import draw_role_card_img
-from .role_sort import diff_characters, sort_characters
-from .role_cache import load_role_characters_cache, save_role_characters_cache
-from ..utils.msgs import RoleMsg, send_nte_notify
+from ..utils.msgs import RoleMsg, CharacterMsg, send_nte_notify
 from .explore_card import draw_explore_img
 from .refresh_card import draw_refresh_img
 from .vehicle_card import draw_vehicle_img
 from .realtime_card import draw_realtime_img
 from ..utils.session import SessionCall
 from .character_card import draw_character_card_img
+from .character_sort import diff_characters, sort_characters
 from ..utils.database import NTEUser
+from .character_cache import load_character_cache, save_character_cache
 from .realestate_card import draw_realestate_img
 from .achievement_card import draw_achievement_img
 from ..utils.name_convert import CHARS
@@ -42,20 +42,20 @@ async def run_role_home(bot: Bot, ev: Event) -> None:
             return
         user, client = session
         home = await client.get_role_home(user.uid)
-        characters = await load_role_characters_cache(user.uid)
+        characters = await load_character_cache(user.uid)
         await bot.send(await draw_role_card_img(ev, home, characters, user.role_name))
 
 
 async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
     if not char_name:
-        return await send_nte_notify(bot, ev, RoleMsg.usage_detail())
+        return await send_nte_notify(bot, ev, CharacterMsg.usage_detail())
 
     std_char_name = CHARS.name_of(char_name)
     if not std_char_name:
-        return await send_nte_notify(bot, ev, RoleMsg.CHAR_NOT_FOUND)
+        return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
     char_id = CHARS.id_of(std_char_name)
     if not char_id:
-        return await send_nte_notify(bot, ev, RoleMsg.CHAR_NOT_FOUND)
+        return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
     target = await resolve_at_target(bot, ev)
     if target is None:
@@ -66,13 +66,15 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
         has_history = await NTEUser.has_logged_in_history(target.user_id, ev.bot_id)
         return await send_nte_notify(bot, ev, RoleMsg.not_logged_in(target.is_other, has_history=has_history))
 
-    characters = await load_role_characters_cache(user.uid)
+    characters = await load_character_cache(user.uid)
     if not characters:
-        return await send_nte_notify(bot, ev, RoleMsg.OTHER_LOCAL_EMPTY if target.is_other else RoleMsg.LOCAL_EMPTY)
+        return await send_nte_notify(
+            bot, ev, CharacterMsg.OTHER_LOCAL_EMPTY if target.is_other else CharacterMsg.LOCAL_EMPTY
+        )
 
     char = next((character for character in characters if character.id == char_id), None)
     if char is None:
-        return await send_nte_notify(bot, ev, RoleMsg.CHAR_NOT_FOUND)
+        return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
     await bot.send(await draw_character_card_img(ev, char, user.role_name, user.uid))
 
@@ -88,9 +90,9 @@ async def run_refresh_role_panel(bot: Bot, ev: Event) -> None:
         home = await client.get_role_home(user.uid)
         raw_characters = await client.get_role_characters_data(user.uid)
         parsed_characters = [CharacterDetail.model_validate(item) for item in raw_characters]
-        old_characters = await load_role_characters_cache(user.uid)
+        old_characters = await load_character_cache(user.uid)
         changed_ids = diff_characters(parsed_characters, old_characters)
-        await save_role_characters_cache(user.uid, raw_characters)
+        await save_character_cache(user.uid, raw_characters)
         sorted_characters = sort_characters(parsed_characters, changed_ids=changed_ids)
         await bot.send(await draw_refresh_img(ev, user.role_name, user.uid, home, sorted_characters, len(changed_ids)))
 

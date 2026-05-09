@@ -10,12 +10,12 @@ from gsuid_core.models import Event
 from gsuid_core.utils.image.convert import convert_img
 from gsuid_core.utils.image.image_tools import get_event_avatar
 
-from .role_sort import sort_characters
 from ..utils.image import (
     add_footer,
     get_nte_bg,
     make_head_avatar,
 )
+from .character_sort import sort_characters
 from ..utils.resource.cdn import (
     get_area_wide_img,
     get_char_group_img,

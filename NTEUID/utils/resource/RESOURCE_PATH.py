@@ -27,20 +27,22 @@ ALIAS_PATH = MAIN_PATH / "alias"
 USER_CHAR_ALIAS_PATH = ALIAS_PATH / "char_alias.json"
 USER_FORK_ALIAS_PATH = ALIAS_PATH / "fork_alias.json"
 
-# 角色
+# 玩家存档级（role）：主页卡背景
 ROLE_PATH = MAIN_PATH / "role"
 ROLE_CARD_PATH = ROLE_PATH / "card"
-ROLE_ART_PATH = ROLE_PATH / "detail"
-ROLE_SKILL_PATH = ROLE_PATH / "skill"
-ROLE_CITY_SKILL_PATH = ROLE_PATH / "city_skill"
-ROLE_AVATAR_PATH = ROLE_PATH / "avatar"
-ROLE_GROUP_PATH = ROLE_PATH / "group"
-ROLE_GROUP_BLACK_PATH = ROLE_PATH / "group_black"
-ROLE_ELEMENT_PATH = ROLE_PATH / "element"
-ROLE_AWAKEN_PATH = ROLE_PATH / "awaken"
-ROLE_PROPERTY_PATH = ROLE_PATH / "property"
-ROLE_SUIT_DETAIL_PATH = ROLE_PATH / "suit" / "detail"
-ROLE_SUIT_DRIVE_PATH = ROLE_PATH / "suit" / "drive"
+
+# 可玩角色级（character）：CDN 端路径都叫 character/...，物理目录复用 role/ 不动
+CHAR_ART_PATH = ROLE_PATH / "detail"
+CHAR_SKILL_PATH = ROLE_PATH / "skill"
+CHAR_CITY_SKILL_PATH = ROLE_PATH / "city_skill"
+CHAR_AVATAR_PATH = ROLE_PATH / "avatar"
+CHAR_GROUP_PATH = ROLE_PATH / "group"
+CHAR_GROUP_BLACK_PATH = ROLE_PATH / "group_black"
+CHAR_ELEMENT_PATH = ROLE_PATH / "element"
+CHAR_AWAKEN_PATH = ROLE_PATH / "awaken"
+CHAR_PROPERTY_PATH = ROLE_PATH / "property"
+CHAR_SUIT_DETAIL_PATH = ROLE_PATH / "suit" / "detail"
+CHAR_SUIT_DRIVE_PATH = ROLE_PATH / "suit" / "drive"
 
 # 武器（弧盘）
 WEAPON_PATH = MAIN_PATH / "weapon"
@@ -83,18 +85,18 @@ def init_dir():
         SIGN_CALENDAR_PATH,
         ROLE_PATH,
         ROLE_CARD_PATH,
-        ROLE_ART_PATH,
-        ROLE_SKILL_PATH,
-        ROLE_CITY_SKILL_PATH,
-        ROLE_AVATAR_PATH,
-        ROLE_GROUP_PATH,
-        ROLE_GROUP_BLACK_PATH,
-        ROLE_ELEMENT_PATH,
-        ROLE_AWAKEN_PATH,
-        ROLE_PROPERTY_PATH,
+        CHAR_ART_PATH,
+        CHAR_SKILL_PATH,
+        CHAR_CITY_SKILL_PATH,
+        CHAR_AVATAR_PATH,
+        CHAR_GROUP_PATH,
+        CHAR_GROUP_BLACK_PATH,
+        CHAR_ELEMENT_PATH,
+        CHAR_AWAKEN_PATH,
+        CHAR_PROPERTY_PATH,
         WEAPON_PATH,
-        ROLE_SUIT_DETAIL_PATH,
-        ROLE_SUIT_DRIVE_PATH,
+        CHAR_SUIT_DETAIL_PATH,
+        CHAR_SUIT_DRIVE_PATH,
         VEHICLE_PATH,
         VEHICLE_MODEL_PATH,
         VEHICLE_WIDE_PATH,

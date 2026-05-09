@@ -83,12 +83,11 @@ class SignMsg:
 
 
 class RoleMsg:
+    """玩家存档（roleId 维度）相关文案：主页加载、刷新、登录态等。"""
+
     LOAD_FAILED = "角色数据暂时无法获取，请稍后再试"
-    LOCAL_EMPTY = "暂无本地角色详情数据"
     REFRESH_FAILED = "角色面板刷新失败，请稍后再试"
-    CHAR_NOT_FOUND = "未找到该角色（检查角色名）"
     EMPTY = "暂无可展示的数据"
-    OTHER_LOCAL_EMPTY = "对方暂无本地角色详情数据"
 
     @classmethod
     def not_logged_in(cls, is_other: bool = False, *, has_history: bool = False) -> str:
@@ -103,6 +102,14 @@ class RoleMsg:
         if is_other:
             return "对方登录已失效，无法查询"
         return CommonMsg.login_expired()
+
+
+class CharacterMsg:
+    """可玩角色（charId 维度）相关文案：详情查询、本地缓存。"""
+
+    NOT_FOUND = "未找到该角色（检查角色名）"
+    LOCAL_EMPTY = "暂无本地角色详情数据"
+    OTHER_LOCAL_EMPTY = "对方暂无本地角色详情数据"
 
     @classmethod
     def usage_detail(cls) -> str:

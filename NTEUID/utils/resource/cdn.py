@@ -11,24 +11,24 @@ from PIL import Image
 from ..image import download_pic_from_url
 from .RESOURCE_PATH import (
     WEAPON_PATH,
-    ROLE_ART_PATH,
+    CHAR_ART_PATH,
     AREA_TYPE_PATH,
     AREA_WIDE_PATH,
     AREA_SMALL_PATH,
-    ROLE_GROUP_PATH,
-    ROLE_SKILL_PATH,
+    CHAR_GROUP_PATH,
+    CHAR_SKILL_PATH,
     ACHIEVEMENT_PATH,
-    ROLE_AVATAR_PATH,
-    ROLE_AWAKEN_PATH,
-    ROLE_ELEMENT_PATH,
+    CHAR_AVATAR_PATH,
+    CHAR_AWAKEN_PATH,
+    CHAR_ELEMENT_PATH,
     VEHICLE_WIDE_PATH,
-    ROLE_PROPERTY_PATH,
+    CHAR_PROPERTY_PATH,
     VEHICLE_MODEL_PATH,
-    ROLE_CITY_SKILL_PATH,
-    ROLE_SUIT_DRIVE_PATH,
+    CHAR_CITY_SKILL_PATH,
+    CHAR_SUIT_DRIVE_PATH,
     STATIC_RESOURCE_PATH,
-    ROLE_GROUP_BLACK_PATH,
-    ROLE_SUIT_DETAIL_PATH,
+    CHAR_GROUP_BLACK_PATH,
+    CHAR_SUIT_DETAIL_PATH,
     REALESTATE_DETAIL_PATH,
     REALESTATE_FURNITURE_PATH,
 )
@@ -110,7 +110,7 @@ async def get_avatar_img(avatar_id: str) -> Image.Image:
     img = _pick_local_image(AVATAR_LOCAL_DIR / avatar_id)
     if img is not None:
         return img
-    return await _get(ROLE_AVATAR_PATH, f"avatar/square/{avatar_id}.PNG")
+    return await _get(CHAR_AVATAR_PATH, f"avatar/square/{avatar_id}.PNG")
 
 
 # 角色详情主图（面板中部半身）。id 为角色 id
@@ -120,49 +120,49 @@ async def get_char_detail_img(char_id: str) -> Image.Image:
     img = _pick_local_image(FASHION_LOCAL_DIR / char_id)
     if img is not None:
         return img
-    return await _get(ROLE_ART_PATH, f"character/detail/{char_id}.png")
+    return await _get(CHAR_ART_PATH, f"character/detail/{char_id}.png")
 
 
 # 阵营徽章（彩色版）。id 必须是完整枚举值 `CHARACTER_GROUP_TYPE_ONE…FIVE`，即 `char.group_type.value`
 # 示例: get_char_group_img(char.group_type.value) -> {CDN}/character/group/CHARACTER_GROUP_TYPE_ONE.PNG
 @safe_load_image
 async def get_char_group_img(group_id: str) -> Image.Image:
-    return await _get(ROLE_GROUP_PATH, f"character/group/{group_id}.PNG")
+    return await _get(CHAR_GROUP_PATH, f"character/group/{group_id}.PNG")
 
 
 # 阵营徽章（黑底版），同上用完整枚举值
 # 示例: get_char_group_black_img(char.group_type.value) -> {CDN}/character/group_black/CHARACTER_GROUP_TYPE_ONE.PNG
 @safe_load_image
 async def get_char_group_black_img(group_id: str) -> Image.Image:
-    return await _get(ROLE_GROUP_BLACK_PATH, f"character/group_black/{group_id}.PNG")
+    return await _get(CHAR_GROUP_BLACK_PATH, f"character/group_black/{group_id}.PNG")
 
 
 # 属性图标（魂 / 光 / 灵 / 咒 / 暗 / 相）。id 必须是完整枚举值 `char.element_type.value`
 # 示例: get_char_element_img(char.element_type.value) -> {CDN}/character/element/CHARACTER_ELEMENT_TYPE_PSYCHE.PNG
 @safe_load_image
 async def get_char_element_img(element_id: str) -> Image.Image:
-    return await _get(ROLE_ELEMENT_PATH, f"character/element/{element_id}.PNG")
+    return await _get(CHAR_ELEMENT_PATH, f"character/element/{element_id}.PNG")
 
 
 # 单个觉醒效果图。effect 取自 home.json `awakenEffect[]` 单元素（Effect1…Effect6）
 # 示例: get_char_awaken_img("1003", "Effect4") -> {CDN}/character/awaken/1003_Effect4.png
 @safe_load_image
 async def get_char_awaken_img(char_id: str, effect: str) -> Image.Image:
-    return await _get(ROLE_AWAKEN_PATH, f"character/awaken/{char_id}_{effect}.png")
+    return await _get(CHAR_AWAKEN_PATH, f"character/awaken/{char_id}_{effect}.png")
 
 
 # 战技图标。id 来自 CharacterSkill.id，命名形如 `ga_<pinyin>_<type>`
 # 示例: get_char_skill_img("ga_sagiri_skill") -> {CDN}/character/skill/ga_sagiri_skill.png
 @safe_load_image
 async def get_char_skill_img(skill_id: str) -> Image.Image:
-    return await _get(ROLE_SKILL_PATH, f"character/skill/{skill_id}.png")
+    return await _get(CHAR_SKILL_PATH, f"character/skill/{skill_id}.png")
 
 
 # 城区技能图标。id 来自 CharacterDetail.city_skills[].id，形如 `city_ability_<pinyin>_NN`
 # 示例: get_char_city_skill_img("city_ability_sagiri_01") -> {CDN}/character/city_skill/city_ability_sagiri_01.png
 @safe_load_image
 async def get_char_city_skill_img(skill_id: str) -> Image.Image:
-    return await _get(ROLE_CITY_SKILL_PATH, f"character/city_skill/{skill_id}.png")
+    return await _get(CHAR_CITY_SKILL_PATH, f"character/city_skill/{skill_id}.png")
 
 
 # 武器（弧盘）外观图。id 来自 CharacterFork.id，形如 `fork_<拼音>`；
@@ -180,7 +180,7 @@ async def get_weapon_img(fork_id: str) -> Image.Image:
 # 示例: get_char_property_img("hpmax") -> {CDN}/character/property/hpmax.png
 @safe_load_image
 async def get_char_property_img(property_id: str) -> Image.Image:
-    return await _get(ROLE_PROPERTY_PATH, f"character/property/{property_id}.png")
+    return await _get(CHAR_PROPERTY_PATH, f"character/property/{property_id}.png")
 
 
 # 套装外观图 / 弧盘形状图标（共用 URL 路径）。
@@ -191,14 +191,14 @@ async def get_char_property_img(property_id: str) -> Image.Image:
 # 示例: get_char_suit_detail_img("equipmentgeometry_shu2_1") -> {CDN}/character/suit/detail/equipmentgeometry_shu2_1.png
 @safe_load_image
 async def get_char_suit_detail_img(entry_id: str) -> Image.Image:
-    return await _get(ROLE_SUIT_DETAIL_PATH, f"character/suit/detail/{entry_id}.png")
+    return await _get(CHAR_SUIT_DETAIL_PATH, f"character/suit/detail/{entry_id}.png")
 
 
 # 驱动盘条目图（core / pie 共用）。id 来自 CharacterSuitItem.id
 # 示例: get_char_suit_drive_img("incantation_purple") -> {CDN}/character/suit/drive/incantation_purple.png
 @safe_load_image
 async def get_char_suit_drive_img(drive_id: str) -> Image.Image:
-    return await _get(ROLE_SUIT_DRIVE_PATH, f"character/suit/drive/{drive_id}.png")
+    return await _get(CHAR_SUIT_DRIVE_PATH, f"character/suit/drive/{drive_id}.png")
 
 
 # 房产整体展示图。id 来自 home.json `realestate.showId`，形如 `bigword_l_1` 维纳公寓

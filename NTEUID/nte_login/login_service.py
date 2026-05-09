@@ -22,10 +22,10 @@ from ..utils.constants import LAOHU_APP_ID, LAOHU_APP_KEY
 from ..utils.sdk.laohu import LaohuClient, LaohuDevice, make_device_id
 from ..utils.background import create_background_task
 from ..utils.sdk.tajiduo import TajiduoClient
-from ..nte_role.role_cache import save_role_characters_cache
 from ..utils.game_registry import PRIMARY_GAME_ID, GAME_SIGN_SWITCHES
 from ..nte_config.nte_config import NTEConfig
 from ..utils.sdk.tajiduo_model import GameRoleList, TajiduoError, GameRecordCard, TajiduoSession
+from ..nte_role.character_cache import save_character_cache
 from ..utils.resource.RESOURCE_PATH import QR_PATH
 
 _MAX_LOGIN_TTL_S = 3600  # cache 容量上限；实际等待时长由 NTELoginTTL 决定
@@ -495,7 +495,7 @@ async def _auto_refresh_role_panel(tajiduo: TajiduoClient, roles: list[tuple[str
             continue
         try:
             characters = await tajiduo.get_role_characters_data(role_id)
-            await save_role_characters_cache(role_id, characters)
+            await save_character_cache(role_id, characters)
         except Exception as error:
             logger.warning(f"[NTE登录] 自动刷新角色面板失败 roleId={role_id}: {error!r}")
             continue
