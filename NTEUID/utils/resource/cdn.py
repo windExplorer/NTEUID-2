@@ -34,17 +34,23 @@ from .RESOURCE_PATH import (
 )
 
 # 本地缓存目录
+COMMON_LOCAL_DIR = STATIC_RESOURCE_PATH / "common"  # 通用
 AVATAR_LOCAL_DIR = STATIC_RESOURCE_PATH / "char" / "avatar"  # 角色头像
 FASHION_LOCAL_DIR = STATIC_RESOURCE_PATH / "char" / "fashion"  # 角色全身立绘
 FORK_LOCAL_DIR = STATIC_RESOURCE_PATH / "fork"  # 武器
+PROPERTY_LOCAL_DIR = COMMON_LOCAL_DIR / "property"  # 属性
 
 
-def _pick_local_image(local_dir: Path) -> Image.Image | None:
+def _load_random_local_image(local_dir: Path) -> Image.Image | None:
     if local_dir.is_dir():
         files = [f for f in local_dir.iterdir() if f.is_file()]
         if files:
             return Image.open(random.choice(files))
     return None
+
+
+def _load_local_image(path: Path) -> Image.Image | None:
+    return Image.open(path) if path.is_file() else None
 
 
 CDN_BASE = "https://webstatic.tajiduo.com/bbs/yh-game-records-web-source"
@@ -107,7 +113,7 @@ async def get_achievement_img(category_id: str) -> Image.Image:
 # 示例: get_avatar_img(home.avatar) -> {CDN}/avatar/square/1010.PNG
 @safe_load_image
 async def get_avatar_img(avatar_id: str) -> Image.Image:
-    img = _pick_local_image(AVATAR_LOCAL_DIR / avatar_id)
+    img = _load_random_local_image(AVATAR_LOCAL_DIR / avatar_id)
     if img is not None:
         return img
     return await _get(CHAR_AVATAR_PATH, f"avatar/square/{avatar_id}.PNG")
@@ -117,7 +123,7 @@ async def get_avatar_img(avatar_id: str) -> Image.Image:
 # 示例: get_char_detail_img("1019") -> {CDN}/character/detail/1019.png
 @safe_load_image
 async def get_char_detail_img(char_id: str) -> Image.Image:
-    img = _pick_local_image(FASHION_LOCAL_DIR / char_id)
+    img = _load_random_local_image(FASHION_LOCAL_DIR / char_id)
     if img is not None:
         return img
     return await _get(CHAR_ART_PATH, f"character/detail/{char_id}.png")
@@ -170,7 +176,7 @@ async def get_char_city_skill_img(skill_id: str) -> Image.Image:
 # 示例: get_weapon_img("fork_tigertally") -> {CDN}/character/fork/fork_tigertally.png  (娜娜莉·预备备)
 @safe_load_image
 async def get_weapon_img(fork_id: str) -> Image.Image:
-    img = _pick_local_image(FORK_LOCAL_DIR / fork_id)
+    img = _load_random_local_image(FORK_LOCAL_DIR / fork_id)
     if img is not None:
         return img
     return await _get(WEAPON_PATH, f"character/fork/{fork_id}.png")
@@ -180,6 +186,9 @@ async def get_weapon_img(fork_id: str) -> Image.Image:
 # 示例: get_char_property_img("hpmax") -> {CDN}/character/property/hpmax.png
 @safe_load_image
 async def get_char_property_img(property_id: str) -> Image.Image:
+    img = _load_local_image(PROPERTY_LOCAL_DIR / f"{property_id.lower()}.png")
+    if img is not None:
+        return img
     return await _get(CHAR_PROPERTY_PATH, f"character/property/{property_id}.png")
 
 
