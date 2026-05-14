@@ -13,6 +13,7 @@ from gsuid_core.utils.image.image_tools import crop_center_img
 from gsuid_core.utils.download_resource.download_file import download
 
 from .fonts.nte_fonts import nte_font_28, nte_font_42, nte_font_44
+from ..nte_config.nte_config import NTEConfig
 from ..utils.resource.RESOURCE_PATH import QR_PATH
 
 ICON = Path(__file__).parent.parent.parent / "ICON.png"
@@ -226,8 +227,6 @@ def char_img_ring(avatar: Image.Image, size: int) -> Image.Image:
 def make_head_avatar(
     avatar: Image.Image, size: int = 240, avatar_size: int = 200, frame_id: str | None = None
 ) -> Image.Image:
-    """头像 mask 裁圆 + head_ring 内圈 + 随机 texture2d/frame/*.png 外框。
-    `size` 是最终画布和外框尺寸；`avatar_size` 是头像直径，比 `size` 小越多、头像离外框越远。"""
     canvas = Image.new("RGBA", (size, size))
     offset = (size - avatar_size) // 2
 
@@ -237,6 +236,17 @@ def make_head_avatar(
 
     ring = Image.open(TEXT_PATH / "head_ring.png").convert("RGBA").resize((avatar_size, avatar_size))
     canvas.paste(ring, (offset, offset), ring)
+
+    heart_chance: int = NTEConfig.get_config("NTEAvatarHeartChance").data
+    if frame_id is None and random.randint(1, 100) <= heart_chance:
+        heart_side = size * 66 // 240
+        heart = Image.open(TEXT_PATH / "heart.png").convert("RGBA").resize((heart_side, heart_side))
+        visible_radius = avatar_size * 82 // 200
+        edge = int(visible_radius * 0.707)
+        cx = size // 2 + edge
+        cy = size // 2 + edge
+        canvas.alpha_composite(heart, (cx - heart_side // 2, cy - heart_side // 2))
+        return canvas
 
     frame_path = (
         TEXT_PATH / "frame" / f"{frame_id}.png"

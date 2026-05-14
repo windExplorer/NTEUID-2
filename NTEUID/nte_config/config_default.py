@@ -170,4 +170,10 @@ CONFIG_DEFAULT: dict[str, GSC] = {
         "开启后可通过 @他人 查询对方的角色面板等信息；关闭则统一只查自己",
         True,
     ),
+    "NTEAvatarHeartChance": GsIntConfig(
+        "头像心形彩蛋概率",
+        "随机头像框出心形徽章的概率，0-100；0=从不出现，100=必出现，默认 50",
+        50,
+        max_value=100,
+    ),
 }
