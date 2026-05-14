@@ -174,7 +174,7 @@ async def _draw_weapon(
 
     name = _fit_text(draw, fork.name, 295, nte_font_origin(36))
     draw.text((x + 318, y + 41), name, font=nte_font_origin(36), fill=COLOR_WHITE, anchor="lm")
-    stage = int(fork.blev) if fork.blev.isdigit() else 0
+    stage = int(fork.slev) if fork.slev.isdigit() else 0
     stage_text = f"{stage}阶"
     stage_w = round(draw.textlength(stage_text, font=nte_font_origin(26))) + 34
     SmoothDrawer().rounded_rectangle(
