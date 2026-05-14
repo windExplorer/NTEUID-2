@@ -38,6 +38,7 @@ from .tajiduo_model import (
     TeamRecommendation,
     AchievementProgress,
     CommunitySignResult,
+    TajiduoGachaSummary,
     TajiduoUserFullInfo,
     _parse,
     _PostAuthor,
@@ -49,7 +50,7 @@ from .tajiduo_model import (
 TAJIDUO_BASE_URL = "https://bbs-api.tajiduo.com"
 TAJIDUO_USER_CENTER_APP_ID = "10551"
 TAJIDUO_COMMUNITY_APP = TAJIDUO_COMMUNITY_YIHUAN
-TAJIDUO_APP_VERSION = "1.2.2"
+TAJIDUO_APP_VERSION = "1.2.4"
 TAJIDUO_CLIENT_UID = "0"
 TAJIDUO_DS_SALT = "pUds3dfMkl"
 TAJIDUO_DS_NONCE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -378,6 +379,15 @@ class TajiduoClient(_TajiduoBase):
             headers=self._authed_headers(),
         )
         return _parse(VehicleList, _expect_dict(data, "载具数据格式错误"), "载具数据格式错误")
+
+    async def get_gacha_summary(self) -> TajiduoGachaSummary:
+        """异环抽卡分析"""
+        data = await self._request(
+            "/apihub/awapi/yh/gacha",
+            method="GET",
+            headers=self._authed_headers(),
+        )
+        return _parse(TajiduoGachaSummary, _expect_dict(data, "抽卡分析格式错误"), "抽卡分析格式错误")
 
     async def get_user_tasks(self, gid: int = 1) -> UserTasks:
         """任务中心。`task_list1` = 每日任务（签到/浏览/点赞/分享），`task_list2` = 成就任务。"""

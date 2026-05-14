@@ -508,6 +508,46 @@ class NTENoticeType(IntEnum):
         }[self]
 
 
+class TajiduoGachaDetail(_TajiduoModel):
+    """`/apihub/awapi/yh/gacha` 每发已出 S 的明细。垫抽中（当前未出 S）不返回。"""
+
+    charid: str = Field(description="角色 ID（数字串）/ 弧盘武器 ID（`fork_*`）")
+    rareCount: int = Field(description="本发 S 的保底计数（第几抽出）")
+    luckyType: int = Field(default=0, description="单抽运气评级 0-3，3 = 极欧")
+    time: str = Field(default="", description="抽中日期 YYYY-MM-DD")
+    timeStamp: int = Field(description="抽中时间戳，毫秒")
+
+
+class TajiduoGachaPool(_TajiduoModel):
+    """`/apihub/awapi/yh/gacha` 单个池的快照。"""
+
+    tab: str = Field(description="池名：限定卡池 / 常驻卡池 / 弧盘池")
+    m: int = Field(description="软保底（角色池 90，弧盘池 60）")
+    drawCount: int = Field(description="该池窗口内总抽数")
+    rareCount: int = Field(description="该池窗口内 S 出货数")
+    average: str = Field(default="", description="平均出 S 抽数，字符串如 '56.0'")
+    playerOver: str = Field(default="", description="战胜玩家百分位，如 '45%'")
+    details: list[TajiduoGachaDetail] = Field(default_factory=list)
+
+
+class TajiduoGachaSummary(_TajiduoModel):
+    """`/apihub/awapi/yh/gacha` 顶层响应。无 query 参数；服务端凭 access_token 反查 user→role。"""
+
+    avatar: str = Field(default="", description="头像角色 ID")
+    lev: int = Field(default=0, description="角色等级")
+    roleid: str = Field(default="", description="异环游戏 UID")
+    rolename: str = Field(default="", description="游戏内角色昵称")
+    userid: str = Field(default="", description="`9_` 前缀 + laohu_user_id")
+    luckType: int = Field(default=0, description="玄学评分整数 1-12")
+    luckTitle: str = Field(default="", description="玄学称号，如 '陪跑常客'")
+    gachaDetails: list[TajiduoGachaPool] = Field(default_factory=list)
+
+    @property
+    def is_empty(self) -> bool:
+        """三池都没抽过：要么没绑角色，要么绑了但还没出 S。"""
+        return all(p.drawCount == 0 for p in self.gachaDetails)
+
+
 def _parse(model: type[BaseModel], data: Any, message: str) -> Any:
     try:
         if isinstance(data, list):

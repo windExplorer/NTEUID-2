@@ -91,6 +91,9 @@ class AliasRegistry:
                 return entity_id
         return None
 
+    def name_by_id(self, entity_id: str) -> str | None:
+        return self._id_to_name.get(entity_id)
+
     def aliases_of(self, name: str) -> list[str]:
         return self._name_to_aliases.get(name, [])
 
@@ -142,6 +145,16 @@ _REGISTRIES: tuple[AliasRegistry, ...] = (CHARS, FORKS)
 def reload_all() -> None:
     for reg in _REGISTRIES:
         reg.reload()
+
+
+def name_by_id(entity_id: str) -> str:
+    """跨实体反查 id→name：先角色后弧盘。meta 未找到（如资源未下载）时回退到 id 本身，
+    保证调用方拿到的永远是可直接渲染的字符串。"""
+    for reg in _REGISTRIES:
+        name = reg.name_by_id(entity_id)
+        if name:
+            return name
+    return entity_id
 
 
 def alias_to_entity(query: str | None) -> tuple[AliasRegistry, str, str] | None:

@@ -178,54 +178,13 @@ class NoticeMsg:
     LOAD_FAILED = "公告暂时无法获取，请稍后再试"
 
 
-class XhhBindMsg:
-    INVALID_PKEY = "user_pkey 格式不正确，请检查是否完整复制"
-    PKEY_EXPIRED = "user_pkey 已失效，请重新登录小黑盒后获取"
-    NOT_BOUND = "该小黑盒账号未绑定异环角色，请先在小黑盒内完成绑定"
-    VERIFY_FAILED = "小黑盒数据验证失败，请检查凭据是否正确"
-    BIND_SUCCESS = "小黑盒绑定成功"
-    BIND_FAILED = "绑定失败，请检查凭据后重试"
-    BIND_ALREADY_SAME = "已绑定该小黑盒账号"
-    NOT_LOGGED_IN = LoginMsg.NOT_LOGGED_IN
-
-    @classmethod
-    def usage_bind(cls) -> str:
-        return f"用法：{nte_prefix()}绑定小黑盒 <user_pkey>，例如 {nte_prefix()}绑定小黑盒 abcdef..."
-
-    @classmethod
-    def bind_success(cls, role_name: str) -> str:
-        return f"绑定成功，角色【{role_name}】抽卡数据已可查询"
-
-    @classmethod
-    def bind_role_mismatch(cls, xhh_role_name: str, nte_role_name: str) -> str:
-        return f"小黑盒绑定角色【{xhh_role_name}】与当前角色【{nte_role_name}】不一致，\n请检查凭据是否正确"
-
-
 class GachaMsg:
     INVALID_TAP_ID = "TapTap user_id 必须是数字"
-    INVALID_GACHA_QUERY_ID = "抽卡记录参数必须是 TapTap user_id 或小黑盒 user_key"
+    INVALID_QUERY = "抽卡记录参数必须是 TapTap user_id 或小黑盒 user_pkey"
     TAPTAP_NOT_BOUND = f"该 TapTap 账号未绑定异环角色，\n请先完成绑定：{TAPTAP_BIND_GUIDE_URL}"
     LOAD_FAILED = "抽卡数据获取失败，请稍后再试"
-    BIND_ALREADY_SAME = "已绑定该 TapTap 账号"
-    XHH_NOT_BOUND = f"未绑定小黑盒账号，请发送【{nte_prefix()}绑定小黑盒】\n或【{nte_prefix()}绑定tap <tapid>】"
     XHH_TARGET_NOT_BOUND = "该小黑盒账号未绑定异环角色"
-    XHH_PKEY_EXPIRED = "小黑盒凭据已失效，请重新绑定"
-
-    @classmethod
-    def usage_bind(cls) -> str:
-        return f"用法：{nte_prefix()}绑定tap <tapid>，例如 {nte_prefix()}绑定tap 12345"
-
-    @classmethod
-    def bind_required(cls) -> str:
-        return f"未绑定抽卡数据源，请发送【{nte_prefix()}绑定小黑盒】或【{nte_prefix()}绑定tap <tapid>】"
-
-    @classmethod
-    def bind_role_mismatch(cls, taptap_role_name: str, nte_role_name: str) -> str:
-        return f"TapTap 绑定角色【{taptap_role_name}】与当前角色【{nte_role_name}】不一致，\n请检查 user_id 是否正确"
-
-    @classmethod
-    def bind_success(cls, role_name: str) -> str:
-        return f"绑定成功，角色【{role_name}】抽卡数据已可查询"
+    XHH_PKEY_EXPIRED = "小黑盒凭据已失效，请重新获取"
 
     @classmethod
     def empty(cls, role_name: str) -> str:

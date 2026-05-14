@@ -265,27 +265,11 @@
         ]
     },
     "抽卡记录": {
-        "desc": "TapTap / 小黑盒 抽卡数据",
+        "desc": "塔吉多官方 / TapTap / 小黑盒 抽卡数据",
         "data": [
             {
-                "name": "绑定小黑盒",
-                "desc": "粘贴 user_pkey 绑定小黑盒；可作为抽卡记录数据源，但 pkey 会过期",
-                "eg": "绑定小黑盒 <user_pkey>",
-                "need_ck": true,
-                "need_sk": false,
-                "need_admin": false
-            },
-            {
-                "name": "绑定tap",
-                "desc": "把自己的 TapTap user_id 绑定到当前异环账号；操作简单、支持换绑，TapTap 内绑定的角色须与当前异环主角色一致",
-                "eg": "绑定tap 540592389",
-                "need_ck": true,
-                "need_sk": false,
-                "need_admin": false
-            },
-            {
                 "name": "抽卡记录",
-                "desc": "查询抽卡数据；优先 TapTap，未绑 TapTap 时 fallback 到小黑盒",
+                "desc": "塔吉多抽卡记录",
                 "eg": "抽卡记录",
                 "need_ck": true,
                 "need_sk": false,
@@ -293,7 +277,7 @@
             },
             {
                 "name": "抽卡记录TapTap",
-                "desc": "开启抽卡免校验查询后，按 TapTap user_id 直查抽卡记录",
+                "desc": "TapTap 抽卡记录",
                 "eg": "抽卡记录<TapTapId>",
                 "need_ck": false,
                 "need_sk": false,
@@ -301,7 +285,7 @@
             },
             {
                 "name": "抽卡记录小黑盒",
-                "desc": "开启抽卡免校验查询后，使用小黑盒 user_key 查询抽卡记录；只填小黑盒数字 ID 无法查询",
+                "desc": "小黑盒抽卡记录",
                 "eg": "抽卡记录<小黑盒user_key>",
                 "need_ck": false,
                 "need_sk": false,
