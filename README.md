@@ -28,16 +28,27 @@
 >
 > ✨ 如果需要添加其他异环相关功能欢迎在 issues 中提出 ✨
 
+## 丨使用限制
+
+> [!CAUTION]
+> 本项目内的所有模板文件，以及任何用于 UI 渲染的相关资源，**未经原作者书面授权，不得以任何形式拷贝、二次修改或重新发布**。该限制涵盖但不局限于以下场景：
+>
+> - 上传至公开仓库或个人网站托管
+> - 转载、二次散布或在社群中分享原始 / 修改版文件
+> - 打包或内嵌进其他插件、应用、项目使用
+>
+> 如需取得授权，请联系 [Wuyi 无疑](https://github.com/KimigaiiWuyi)。
+
 ## 丨其他
 
 - 本项目仅供学习使用，请勿用于商业用途
 - [GPL-3.0 License](LICENSE)
 
-## 致谢
+## 丨致谢
 
 - [Wuyi 无疑](https://github.com/KimigaiiWuyi)
 - [gsuid_core](https://github.com/Genshin-bots/gsuid_core)
 
-## 攻略组
+## 丨攻略组
 
 - [零号攻略组](https://space.bilibili.com/3546897499294077)
