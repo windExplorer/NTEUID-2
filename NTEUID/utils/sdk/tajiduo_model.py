@@ -199,7 +199,7 @@ class RoleHomeCharacter(_TajiduoModel):
     name: str
     alev: int = Field(0, description="角色等级")
     slev: int = Field(0, description="混频等级")
-    likeability_lev: int = Field(0, alias="likeabilitylev", description="好感度等级")
+    likeability_lev: int = Field(0, alias="likeabilitylev", description="好感度（羁遇）累计经验值")
     awaken_lev: int = Field(0, alias="awakenLev", description="觉醒等级")
     awaken_effect: list[str] = Field(
         default_factory=list, alias="awakenEffect", description="已激活的觉醒效果列表（Effect1…Effect6）"
@@ -305,7 +305,7 @@ class CharacterDetail(_TajiduoModel):
     name: str
     alev: int = Field(0, description="角色等级")
     slev: int = Field(0, description="混频等级")
-    likeability_lev: int = Field(0, alias="likeabilitylev", description="好感度等级")
+    likeability_lev: int = Field(0, alias="likeabilitylev", description="好感度（羁遇）累计经验值")
     awaken_lev: int = Field(0, alias="awakenLev", description="觉醒等级")
     awaken_effect: list[str] = Field(default_factory=list, alias="awakenEffect", description="已激活的觉醒效果列表")
     element_type: CharElement = Field(alias="elementType")

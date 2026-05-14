@@ -9,6 +9,7 @@ from gsuid_core.utils.image.convert import convert_img
 from gsuid_core.utils.image.image_tools import get_event_avatar
 
 from .score import CharacterScore, EquipmentScore, score_character
+from .heartlike import heart_level
 from ..utils.image import COLOR_WHITE, SmoothDrawer, add_footer, get_nte_bg, open_texture, make_nte_role_title
 from ..utils.resource.cdn import (
     get_weapon_img,
@@ -332,8 +333,8 @@ async def draw_character_card_img(ev: Event, character: CharacterDetail, role_na
     canvas.alpha_composite(open_texture(TEX / "banner.png", (300, 81)), (x, y))
     draw.text((x + 105, y + 41), "角色属性", font=nte_font_origin(34), fill=(25, 25, 25), anchor="lm")
     canvas.alpha_composite(open_texture(TEX / "heart.png", (60, 52)), (x + 305, y + 15))
-    like = character.likeability_lev if character.likeability_lev <= 10 else min(10, character.likeability_lev // 40)
-    draw.text((x + 335, y + 41), str(max(0, like)), font=nte_font_origin(26), fill=COLOR_WHITE, anchor="mm")
+    like = heart_level(character.likeability_lev)
+    draw.text((x + 335, y + 41), str(like), font=nte_font_origin(26), fill=COLOR_WHITE, anchor="mm")
     canvas.alpha_composite(open_texture(TEX / "jue.png", (63, 48)), (x + 374, y + 17))
     draw.text((x + 405, y + 41), f"{character.awaken_lev}觉", font=nte_font_origin(26), fill=COLOR_WHITE, anchor="mm")
 
