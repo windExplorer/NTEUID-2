@@ -40,8 +40,8 @@ async def switch_binding(bot: Bot, ev: Event, target: str) -> None:
         msg = CommonMsg.not_logged_in() if not accounts else BindMsg.ONLY_ONE_ACCOUNT
         return await send_nte_notify(bot, ev, msg)
 
-    center_uid = _resolve_target(target, accounts)
-    if center_uid is None:
+    account = _resolve_target(target, accounts)
+    if account is None:
         return await send_nte_notify(bot, ev, BindMsg.target_not_found())
 
     # 无参轮换：把旧 head 踩到最老，N 个账号才能循环 A→B→C→A。
@@ -52,8 +52,8 @@ async def switch_binding(bot: Bot, ev: Event, target: str) -> None:
             accounts[0].center_uid,
             when=accounts[-1].updated_at - timedelta(seconds=1),
         )
-    await NTEUser.touch_account(ev.user_id, ev.bot_id, center_uid)
-    await send_nte_notify(bot, ev, BindMsg.SWITCH_DONE.format(center_uid=center_uid))
+    await NTEUser.touch_account(ev.user_id, ev.bot_id, account.center_uid)
+    await send_nte_notify(bot, ev, BindMsg.switch_done(account.center_uid, account.role_name, account.uid))
 
 
 async def get_laohu_tokens(bot: Bot, ev: Event) -> None:
@@ -104,11 +104,10 @@ async def get_access_tokens(bot: Bot, ev: Event) -> None:
     await send_nte_notify(bot, ev, "\n".join(lines))
 
 
-def _resolve_target(target: str, accounts: list[NTEUser]) -> str | None:
+def _resolve_target(target: str, accounts: list[NTEUser]) -> NTEUser | None:
     """空→次新；纯数字≤账号数→按序号；否则精确匹配 center_uid。"""
     if not target:
-        return accounts[1].center_uid
+        return accounts[1]
     if target.isdigit() and 1 <= int(target) <= len(accounts):
-        return accounts[int(target) - 1].center_uid
-    hit = next((a for a in accounts if a.center_uid == target), None)
-    return hit.center_uid if hit else None
+        return accounts[int(target) - 1]
+    return next((a for a in accounts if a.center_uid == target), None)

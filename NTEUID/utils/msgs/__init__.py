@@ -131,8 +131,12 @@ class TeamMsg:
 
 class BindMsg:
     ONLY_ONE_ACCOUNT = "当前仅绑定了 1 个塔吉多账号，无需切换"
-    SWITCH_DONE = "已切换到塔吉多账号 {center_uid}"
     TOKEN_EMPTY = "未找到可用的塔吉多凭证"
+
+    @classmethod
+    def switch_done(cls, center_uid: str, role_name: str, uid: str) -> str:
+        role = f"\n当前角色：{role_name}（{uid}）" if role_name and uid else ""
+        return f"已切换到塔吉多账号 {center_uid}{role}"
 
     @classmethod
     def target_not_found(cls) -> str:
