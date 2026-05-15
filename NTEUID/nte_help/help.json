@@ -129,9 +129,38 @@
             },
             {
                 "name": "体力",
-                "desc": "本性像素 / 都市活力 / 活跃度 / 周本次数",
+                "desc": "本性像素 / 都市活力 / 活跃度 / 周本剩余",
                 "eg": "体力",
                 "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            }
+        ]
+    },
+    "体力推送": {
+        "desc": "当前活跃角色体力阈值提醒",
+        "data": [
+            {
+                "name": "订阅体力推送",
+                "desc": "订阅当前活跃角色本性像素达到阈值提醒，默认阈值 200",
+                "eg": "订阅体力推送 200",
+                "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "取消订阅体力",
+                "desc": "取消当前活跃角色的体力推送订阅",
+                "eg": "取消订阅体力",
+                "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "取消全部订阅体力",
+                "desc": "取消当前用户的全部体力推送订阅",
+                "eg": "取消全部订阅体力",
+                "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
             }
