@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
+from gsuid_core.utils.image.image_tools import get_event_avatar
 
 from ..utils.at import AtTarget, resolve_at_target
 from .role_card import draw_role_card_img
@@ -134,7 +135,8 @@ async def run_realtime(bot: Bot, ev: Event) -> None:
             return
         user, client = session
         home = await client.get_role_home(user.uid)
-        await bot.send(await draw_realtime_img(ev, user, home))
+        avatar = await get_event_avatar(ev)
+        await bot.send(await draw_realtime_img(avatar, user, home))
 
 
 async def run_explore(bot: Bot, ev: Event) -> None:

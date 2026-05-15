@@ -1,4 +1,5 @@
 from gsuid_core.sv import SV
+from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
 
@@ -12,7 +13,15 @@ from .role_service import (
     run_character_detail,
     run_refresh_role_panel,
 )
+from .stamina_push import (
+    check_stamina_push,
+    run_subscribe_stamina,
+    run_unsubscribe_stamina,
+    run_unsubscribe_all_stamina,
+    run_delete_all_stamina_subscriptions,
+)
 from ..utils.constants import COMMAND_NAME_PATTERN
+from ..nte_config.nte_config import NTEConfig
 
 sv_nte_role_home = SV("nte角色面板")
 sv_nte_role_refresh = SV("nte刷新面板")
@@ -22,6 +31,11 @@ sv_nte_realestate = SV("nte房产")
 sv_nte_vehicle = SV("nte载具")
 sv_nte_explore = SV("nte探索详情")
 sv_nte_realtime = SV("nte实时信息")
+sv_nte_stamina_sub = SV("nte体力订阅")
+sv_nte_stamina_admin = SV("nte体力订阅管理", pm=1)
+
+
+_STAMINA_CHECK_MIN = min(60, max(5, int(NTEConfig.get_config("NTEStaminaCheckMinutes").data)))
 
 
 @sv_nte_role_home.on_fullmatch(("查询", "卡片", "角色", "信息"), block=True)
@@ -78,3 +92,28 @@ async def nte_explore(bot: Bot, ev: Event):
 @sv_nte_realtime.on_fullmatch(("体力", "活力", "mr"))
 async def nte_realtime(bot: Bot, ev: Event):
     await run_realtime(bot, ev)
+
+
+@sv_nte_stamina_sub.on_regex(r"^(订阅体力推送|订阅体力|体力订阅)\s*(?P<threshold>\d*)$")
+async def nte_sub_stamina(bot: Bot, ev: Event):
+    await run_subscribe_stamina(bot, ev, ev.regex_dict.get("threshold", ""))
+
+
+@sv_nte_stamina_sub.on_fullmatch(("取消订阅体力", "退订体力", "取消体力订阅"))
+async def nte_unsub_stamina(bot: Bot, ev: Event):
+    await run_unsubscribe_stamina(bot, ev)
+
+
+@sv_nte_stamina_sub.on_fullmatch(("取消全部订阅体力", "退订全部体力", "取消全部体力订阅"))
+async def nte_unsub_all_stamina(bot: Bot, ev: Event):
+    await run_unsubscribe_all_stamina(bot, ev)
+
+
+@sv_nte_stamina_admin.on_fullmatch(("删除所有体力订阅", "清空体力订阅"))
+async def nte_delete_all_stamina_subscriptions(bot: Bot, ev: Event):
+    await run_delete_all_stamina_subscriptions(bot, ev)
+
+
+@scheduler.scheduled_job("interval", minutes=_STAMINA_CHECK_MIN, id="nte_stamina_push")
+async def nte_stamina_push_job():
+    await check_stamina_push()

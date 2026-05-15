@@ -372,6 +372,14 @@
                 "need_admin": true
             },
             {
+                "name": "删除所有体力订阅",
+                "desc": "删除所有用户的体力推送订阅",
+                "eg": "删除所有体力订阅",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": true
+            },
+            {
                 "name": "更新记录",
                 "desc": "查看插件 git 更新记录",
                 "eg": "更新记录",

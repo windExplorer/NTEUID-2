@@ -5,9 +5,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from gsuid_core.models import Event
 from gsuid_core.utils.image.convert import convert_img
-from gsuid_core.utils.image.image_tools import get_event_avatar
 
 from ..utils.image import (
     COLOR_WHITE,
@@ -76,9 +74,7 @@ def _draw_stat_cell(
     draw.text((text_x, mid_y + 14), label, font=font_label, fill=COLOR_LABEL, anchor="lt")
 
 
-async def draw_realtime_img(ev: Event, user: NTEUser, home: RoleHome):
-    user_avatar = await get_event_avatar(ev)
-
+async def draw_realtime_img(avatar: Image.Image, user: NTEUser, home: RoleHome):
     canvas = Image.new("RGBA", (1786, 1000), (0, 0, 0, 0))
     canvas.alpha_composite(Image.open(TEXTURE_PATH / "bg.jpg").convert("RGBA"), (0, 0))
 
@@ -87,7 +83,7 @@ async def draw_realtime_img(ev: Event, user: NTEUser, home: RoleHome):
     canvas.alpha_composite(_fit_centered(fashion_raw, (800, 1000)), (-40, 0))
     canvas.alpha_composite(Image.open(TEXTURE_PATH / "fg.png").convert("RGBA"), (0, 0))
 
-    canvas.alpha_composite(make_nte_role_title(user_avatar, user.role_name, user.uid, home.lev), (676, 180))
+    canvas.alpha_composite(make_nte_role_title(avatar, user.role_name, user.uid, home.lev), (676, 180))
 
     badges = []
     if await NTESignRecord.is_signed(f"{user.game_id}:{user.uid}", SIGN_KIND_GAME):

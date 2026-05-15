@@ -88,6 +88,29 @@ class NTEUser(User, table=True):
 
     @classmethod
     @with_session
+    async def get_by_role(
+        cls: type[T_NTEUser],
+        session: AsyncSession,
+        user_id: str,
+        uid: str,
+        game_id: str,
+    ) -> T_NTEUser | None:
+        result = await session.execute(
+            select(cls)
+            .where(
+                cls.user_id == user_id,
+                col(cls.uid) == uid,
+                col(cls.game_id) == game_id,
+                col(cls.access_token) != "",
+                (col(cls.status).is_(None)) | (col(cls.status) == ""),
+            )
+            .order_by(col(cls.updated_at).desc())
+            .limit(1)
+        )
+        return result.scalars().first()
+
+    @classmethod
+    @with_session
     async def list_latest_per_account(
         cls: type[T_NTEUser],
         session: AsyncSession,

@@ -165,6 +165,37 @@ class AliasMsg:
         return f"用法：{p}<角色名/武器名>别名 或 {p}<角色名/武器名>别名列表，例如 {p}娜娜莉别名"
 
 
+class StaminaMsg:
+    PUSH_CLOSED = "体力推送总开关已关闭"
+    NOT_SUBSCRIBED = "未订阅体力推送，无需取消"
+    UNSUBSCRIBED_ALL = "已取消全部体力推送"
+    NO_SUBSCRIBERS = "当前没有体力订阅"
+
+    @classmethod
+    def threshold_invalid(cls, lo: int, hi: int) -> str:
+        return f"阈值需要是 {lo}-{hi} 范围内的整数"
+
+    @classmethod
+    def subscribed(cls, role_name: str, threshold: int) -> str:
+        return f"已开启【{role_name}】体力推送，阈值 {threshold}"
+
+    @classmethod
+    def threshold_updated(cls, role_name: str, threshold: int) -> str:
+        return f"已更新【{role_name}】体力推送阈值为 {threshold}"
+
+    @classmethod
+    def unsubscribed(cls, role_name: str) -> str:
+        return f"已取消【{role_name}】体力推送"
+
+    @classmethod
+    def all_deleted(cls, count: int) -> str:
+        return f"已删除所有体力订阅，共 {count} 条"
+
+    @classmethod
+    def stamina_reached(cls, role_name: str, value: int, maximum: int) -> str:
+        return f"{role_name} 本性像素已达到 {value}/{maximum}，记得去消耗哦～"
+
+
 class NoticeMsg:
     SUBSCRIBE_GROUP_ONLY = "请在群聊中订阅"
     UNSUBSCRIBE_GROUP_ONLY = "请在群聊中取消订阅"

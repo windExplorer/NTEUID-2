@@ -176,4 +176,21 @@ CONFIG_DEFAULT: dict[str, GSC] = {
         50,
         max_value=100,
     ),
+    "NTEStaminaPushOpen": GsBoolConfig(
+        "体力推送总开关",
+        "关闭后所有订阅用户都不再收到体力到达推送",
+        False,
+    ),
+    "NTEStaminaCheckMinutes": GsIntConfig(
+        "体力检测间隔",
+        "体力检测间隔（分钟），有效区间 5-60，重启后生效",
+        10,
+        60,
+    ),
+    "NTEStaminaDailyPushLimit": GsIntConfig(
+        "体力每日推送次数",
+        "达到阈值后每个检查周期推一次，单日最多推 N 次，次日 0 点重置（上限 20）",
+        1,
+        20,
+    ),
 }
