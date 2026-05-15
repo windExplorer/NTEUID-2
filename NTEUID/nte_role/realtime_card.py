@@ -20,6 +20,7 @@ TEXTURE_PATH = Path(__file__).parent / "texture2d" / "realtime"
 FASHION_DIR = TEXTURE_PATH / "fashion"
 
 COLOR_VAL_RED = (235, 80, 100)
+COLOR_VAL_GREEN = (95, 220, 158)
 COLOR_LABEL = (210, 210, 220)
 COLOR_SUB_GRAY = (170, 170, 180)
 
@@ -52,6 +53,7 @@ def _draw_stat_cell(
     value: str,
     maximum: str,
     xy: tuple[int, int],
+    value_color: tuple[int, int, int] = COLOR_VAL_RED,
 ) -> None:
     cx, cy = xy
     canvas.alpha_composite(icon, (cx + 16, cy + 3))
@@ -62,7 +64,7 @@ def _draw_stat_cell(
     font_max = nte_font_origin(40)
     font_label = nte_font_origin(24)
 
-    draw.text((text_x, mid_y - 4), value, font=font_value, fill=COLOR_VAL_RED, anchor="lb")
+    draw.text((text_x, mid_y - 4), value, font=font_value, fill=value_color, anchor="lb")
     val_w = draw.textlength(value, font=font_value)
     draw.text(
         (text_x + val_w + 4, mid_y - 4),
@@ -107,12 +109,13 @@ async def draw_realtime_img(avatar: Image.Image, user: NTEUser, home: RoleHome):
     )
 
     canvas.alpha_composite(Image.open(TEXTURE_PATH / "bg1.png").convert("RGBA"), (696, 568))
+    week_copies_color = COLOR_VAL_GREEN if home.week_copies_remain_cnt == 0 else COLOR_VAL_RED
 
     cards = (
-        ("stamina.png", "本性像素", str(home.stamina_value), str(home.stamina_max_value)),
-        ("citystamina.png", "都市活力", str(home.city_stamina_value), str(home.city_stamina_max_value)),
-        ("activity.png", "活跃度", str(home.day_value), "100"),
-        ("weekcopies.png", "周本次数", str(home.week_copies_remain_cnt), "3"),
+        ("stamina.png", "本性像素", home.stamina_value, home.stamina_max_value),
+        ("citystamina.png", "都市活力", home.city_stamina_value, home.city_stamina_max_value),
+        ("activity.png", "活跃度", home.day_value, 100),
+        ("weekcopies.png", "周本剩余", home.week_copies_remain_cnt, 3),
     )
     for i, (icon_name, label, val, mx) in enumerate(cards):
         row, col = divmod(i, 2)
@@ -121,9 +124,10 @@ async def draw_realtime_img(avatar: Image.Image, user: NTEUser, home: RoleHome):
             draw,
             _load_icon(icon_name, 128),
             label,
-            val,
-            mx,
+            str(val),
+            str(mx),
             (736 + col * 500, 598 + row * 143),
+            week_copies_color if label == "周本剩余" else COLOR_VAL_RED,
         )
 
     add_footer(canvas)
