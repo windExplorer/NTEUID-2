@@ -42,7 +42,6 @@ _ITEM_H = _ITEM_W * 340 // 240
 _ITEM_GAP = 14
 _ITEM_STRIDE = 195
 _ITEMS_PER_ROW = 6
-_MAX_ITEMS_PER_SECTION = 12
 _BANNER_H = 192
 _BANNER_ITEMS_OFFSET = 147
 _SECTION_GAP = 12
@@ -54,7 +53,7 @@ _FOOTER_RESERVE = 60
 
 
 def _item_rows(item_count: int) -> int:
-    return (min(item_count, _MAX_ITEMS_PER_SECTION) + _ITEMS_PER_ROW - 1) // _ITEMS_PER_ROW
+    return (item_count + _ITEMS_PER_ROW - 1) // _ITEMS_PER_ROW
 
 
 def _section_h(item_count: int) -> int:
@@ -222,7 +221,7 @@ async def _draw_item(canvas: Image.Image, xy: tuple[int, int], item: NTEGachaIte
 async def _draw_section(canvas: Image.Image, top_y: int, section: NTEGachaSection) -> int:
     _draw_banner(canvas, (0, top_y), section)
     items_top = top_y + _BANNER_ITEMS_OFFSET
-    items = sorted(section.items, key=lambda i: i.pull_time_ts, reverse=True)[:_MAX_ITEMS_PER_SECTION]
+    items = sorted(section.items, key=lambda i: i.pull_time_ts, reverse=True)
     if not items:
         return top_y + _BANNER_H
 
