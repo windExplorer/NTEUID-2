@@ -432,6 +432,7 @@ class NoticePost(_TajiduoModel):
     community_id: int = Field(0, alias="communityId")
     subject: str = ""
     create_time: int = Field(0, alias="createTime")
+    send_time: int = Field(0, alias="sendTime")
     author_name: str = Field("", alias="authorName")
     author_avatar: str = Field("", alias="authorAvatar")
     structured_content: str = Field("", alias="structuredContent")

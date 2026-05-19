@@ -1,3 +1,4 @@
+import time
 import random
 import asyncio
 
@@ -75,7 +76,10 @@ async def check_nte_notice_state():
         logger.info("[异环公告] 初始成功, 将在下个轮询中更新.")
         return
 
-    pending = [post for post in flat if post.post_id not in known_ids]
+    min_send_time = int(time.time() * 1000) - 6 * 60 * 60 * 1000
+    pending = [
+        post for post in flat if post.post_id not in known_ids and (post.send_time or post.create_time) >= min_send_time
+    ]
     if not pending:
         logger.info("[异环公告] 没有最新公告")
         return
