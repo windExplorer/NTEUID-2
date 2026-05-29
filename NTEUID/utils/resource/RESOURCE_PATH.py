@@ -9,8 +9,6 @@ MAIN_PATH = get_res_path() / "NTEUID"
 sys.path.append(str(MAIN_PATH))
 
 CONFIG_PATH = MAIN_PATH / "config.json"
-# 面板
-PLAYERINFO_PATH = MAIN_PATH / "playerinfo"
 
 # 角色资料
 RESOURCE_PATH = MAIN_PATH / "resource"
@@ -79,7 +77,6 @@ QR_PATH = OTHER_PATH / "qr"
 def init_dir():
     for path in [
         MAIN_PATH,
-        PLAYERINFO_PATH,
         RESOURCE_PATH,
         OTHER_PATH,
         NOTICE_PATH,

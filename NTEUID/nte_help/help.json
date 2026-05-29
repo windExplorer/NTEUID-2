@@ -96,6 +96,14 @@
                 "need_admin": false
             },
             {
+                "name": "角色排名",
+                "desc": "本群刷新过面板的号按该角色评分降序排行；加 bot 看bot（觉醒 / 套装 / 评分 / 评级）",
+                "eg": "娜娜莉<bot>排名",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
                 "name": "成就",
                 "desc": "异环成就进度卡：磁带数 / UMD 金银铜 / 8 大类目进度",
                 "eg": "成就",

@@ -14,7 +14,7 @@ from .realtime_card import draw_realtime_img
 from ..utils.session import SessionCall
 from .character_card import draw_character_card_img
 from .character_sort import diff_characters, sort_characters
-from ..utils.database import NTEUser
+from ..utils.database import NTEUser, NTEGroupMember
 from .character_cache import load_character_cache, save_character_cache
 from .realestate_card import draw_realestate_img
 from .achievement_card import draw_achievement_img
@@ -94,6 +94,9 @@ async def run_refresh_role_panel(bot: Bot, ev: Event) -> None:
         old_characters = await load_character_cache(user.uid)
         changed_ids = diff_characters(parsed_characters, old_characters)
         await save_character_cache(user.uid, raw_characters)
+        # 群成员登记只在「自己在群里刷新」时做：upsert 用 ev.user_id(请求者) 绑 user.uid，@他人会错绑
+        if ev.group_id and not target.is_other:
+            await NTEGroupMember.upsert_member(ev.group_id, ev.bot_id, ev.user_id, user.uid, user.role_name)
         sorted_characters = sort_characters(parsed_characters, changed_ids=changed_ids)
         await bot.send(await draw_refresh_img(ev, user.role_name, user.uid, home, sorted_characters, len(changed_ids)))
 

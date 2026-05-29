@@ -117,6 +117,24 @@ class CharacterMsg:
         return f"用法：{p}<角色名>面板，例如 {p}娜娜莉面板"
 
 
+class RankMsg:
+    """角色评分群排名相关文案。"""
+
+    GROUP_ONLY = "评分排名只能在群里使用"
+    NO_MEMBER = "本群还没有人刷新过面板，无法排名"
+    NO_SCORE = "暂无该角色的可评分数据（需先刷新面板）"
+
+    @classmethod
+    def usage(cls) -> str:
+        p = nte_prefix()
+        return f"用法：{p}<角色名>排名，例如 {p}娜娜莉排名"
+
+    @classmethod
+    def usage_bot(cls) -> str:
+        p = nte_prefix()
+        return f"用法：{p}<角色名>bot排名，例如 {p}娜娜莉bot排名"
+
+
 class TeamMsg:
     LOAD_FAILED = "配队推荐暂时无法获取，请稍后再试"
     EMPTY = "当前没有可用的配队推荐"

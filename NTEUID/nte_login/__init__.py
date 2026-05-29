@@ -9,9 +9,8 @@ from . import login_router
 from ..utils.msgs import LoginMsg, CommonMsg, send_nte_notify
 from .bind_service import view_bindings, switch_binding, get_laohu_tokens, get_access_tokens
 from .login_service import request_login, login_by_laohu_token, login_by_access_token, refresh_all_user_tokens
-from ..utils.database import NTEUser
+from ..utils.database import NTEUser, NTECharData, NTEGroupMember
 from ..utils.game_registry import PRIMARY_GAME_ID
-from ..nte_role.character_cache import get_character_cache_path
 
 _ = login_router  # 纯副作用 import：FastAPI 路由在模块加载时注册
 
@@ -60,11 +59,9 @@ async def nte_logout_cmd(bot: Bot, ev: Event):
     if not deleted:
         return await send_nte_notify(bot, ev, LoginMsg.NOT_LOGGED_IN)
 
-    for uid in uids:
-        cache_path = get_character_cache_path(uid)
-        if cache_path.exists():
-            cache_path.unlink()
-            logger.info(f"[NTE登出] 删除角色缓存 {cache_path}")
+    await NTECharData.delete_by_uids(uids)
+    await NTEGroupMember.delete_by_uids(ev.bot_id, uids)
+    logger.info(f"[NTE登出] 清理角色数据 uids={uids}")
 
     await send_nte_notify(bot, ev, LoginMsg.LOGOUT_DONE)
 
@@ -78,11 +75,9 @@ async def nte_logout_all_cmd(bot: Bot, ev: Event):
     if not deleted:
         return await send_nte_notify(bot, ev, LoginMsg.NOT_LOGGED_IN)
 
-    for uid in uids:
-        cache_path = get_character_cache_path(uid)
-        if cache_path.exists():
-            cache_path.unlink()
-            logger.info(f"[NTE登出] 删除角色缓存 {cache_path}")
+    await NTECharData.delete_by_uids(uids)
+    await NTEGroupMember.delete_by_uids(ev.bot_id, uids)
+    logger.info(f"[NTE登出] 清理全部角色数据 uids={uids}")
 
     await send_nte_notify(bot, ev, LoginMsg.LOGOUT_ALL_DONE)
 

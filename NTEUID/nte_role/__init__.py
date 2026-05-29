@@ -3,6 +3,7 @@ from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
 
+from .rank_service import run_bot_rank, run_character_rank
 from .role_service import (
     run_explore,
     run_realtime,
@@ -26,6 +27,7 @@ from ..nte_config.nte_config import NTEConfig
 sv_nte_role_home = SV("nte角色面板")
 sv_nte_role_refresh = SV("nte刷新面板")
 sv_nte_role_detail = SV("nte角色详情")
+sv_nte_role_rank = SV("nte角色评分排名")
 sv_nte_achievement = SV("nte成就进度")
 sv_nte_realestate = SV("nte房产")
 sv_nte_vehicle = SV("nte载具")
@@ -67,6 +69,19 @@ async def nte_role_refresh(bot: Bot, ev: Event):
 )
 async def nte_role_detail(bot: Bot, ev: Event):
     await run_character_detail(bot, ev, ev.regex_dict["char_name"])
+
+
+@sv_nte_role_rank.on_regex(
+    # scope: bot = 全服，群/空 = 本群；排名/排行/排行榜、可选「评分」都触发；一个 handler 内分发避免歧义
+    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(?P<scope>bot|群)?(?:评分)?(?:排名|排行榜|排行)$",
+    block=True,
+)
+async def nte_role_rank(bot: Bot, ev: Event):
+    char_name = ev.regex_dict["char_name"]
+    if ev.regex_dict.get("scope") == "bot":
+        await run_bot_rank(bot, ev, char_name)
+    else:
+        await run_character_rank(bot, ev, char_name)
 
 
 @sv_nte_achievement.on_fullmatch(("成就进度", "成就"))

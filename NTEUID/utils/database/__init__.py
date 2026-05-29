@@ -15,16 +15,19 @@ from gsuid_core.utils.database.base_models import User, BaseIDModel, with_sessio
 
 from ..game_registry import PRIMARY_GAME_ID
 
-# 老库自动加列；core 在 on_core_start 时统一执行，已存在的列会静默失败。
 exec_list.extend(
     [
         "ALTER TABLE NTEUser ADD COLUMN tap_id TEXT DEFAULT ''",
         "ALTER TABLE NTEUser ADD COLUMN xhh_pkey TEXT DEFAULT ''",
+        "CREATE INDEX IF NOT EXISTS ix_nteuser_uid ON NTEUser (uid)",
+        "CREATE INDEX IF NOT EXISTS ix_nteuser_user_id ON NTEUser (user_id)",
     ]
 )
 
 T_NTEUser = TypeVar("T_NTEUser", bound="NTEUser")
 T_NTESignRecord = TypeVar("T_NTESignRecord", bound="NTESignRecord")
+T_NTEGroupMember = TypeVar("T_NTEGroupMember", bound="NTEGroupMember")
+T_NTECharData = TypeVar("T_NTECharData", bound="NTECharData")
 
 SIGN_KIND_APP = "app"
 SIGN_KIND_GAME = "game"
@@ -108,6 +111,46 @@ class NTEUser(User, table=True):
             .limit(1)
         )
         return result.scalars().first()
+
+    @classmethod
+    @with_session
+    async def identity_by_uids(
+        cls: type[T_NTEUser],
+        session: AsyncSession,
+        uids: list[str],
+    ) -> dict[str, tuple[str, str]]:
+        """按 uid 取身份 {uid: (user_id, role_name)}，给评分排名出榜 / 标红 / 头像用。
+        同 uid 多行取 updated_at 最新一行。"""
+        if not uids:
+            return {}
+        result = await session.execute(
+            select(cls.uid, cls.user_id, cls.role_name)
+            .where(col(cls.uid).in_(uids))
+            .order_by(col(cls.updated_at).desc())
+        )
+        identity: dict[str, tuple[str, str]] = {}
+        for uid, user_id, role_name in result.all():
+            identity.setdefault(uid, (user_id, role_name))
+        return identity
+
+    @classmethod
+    @with_session
+    async def uids_of_user(
+        cls: type[T_NTEUser],
+        session: AsyncSession,
+        user_id: str,
+        bot_id: str,
+    ) -> set[str]:
+        """某用户主游戏下全部角色 uid 集合（全服排名里定位"自己"用，小集合）。"""
+        result = await session.execute(
+            select(cls.uid).where(
+                cls.user_id == user_id,
+                cls.bot_id == bot_id,
+                col(cls.game_id) == PRIMARY_GAME_ID,
+                col(cls.uid) != "",
+            )
+        )
+        return set(result.scalars().all())
 
     @classmethod
     @with_session
@@ -209,6 +252,14 @@ class NTEUser(User, table=True):
         )
         current: dict[tuple[str, str], T_NTEUser] = {(row.game_id, row.uid): row for row in result.scalars().all()}
         keep = {(game_id, uid) for uid, _, game_id in entries}
+
+        # 被移除的异环角色，连带清掉其评分快照 / 群参榜行，避免排名出现孤儿条目
+        dropped_uids = [
+            uid for (game_id, uid), _ in current.items() if (game_id, uid) not in keep and game_id == PRIMARY_GAME_ID
+        ]
+        if dropped_uids:
+            await session.execute(delete(NTECharData).where(col(NTECharData.uid).in_(dropped_uids)))
+            await session.execute(delete(NTEGroupMember).where(col(NTEGroupMember.uid).in_(dropped_uids)))
 
         for key, row in current.items():
             if key not in keep:
@@ -615,6 +666,175 @@ class NTESignRecord(BaseIDModel, table=True):
         return result.rowcount
 
 
+class NTEGroupMember(BaseIDModel, table=True):
+    """群 × 账号 的参榜登记，给「角色评分排名」按群圈定参榜号用。一行 = (group_id, bot_id, uid)。
+    某账号在群里刷新面板时 upsert，多开多号→多行。`user_id` / `role_name` 是登记当时本群语境下的
+    归属身份（钉死刷新者，不靠 NTEUser 全局反查——共享 / 转手账号时本群归属才准），群排名直接用、
+    无需联表。全服(bot)排名没有群行，才退回 NTEUser 反查身份。登出按 uid 清。
+    """
+
+    __table_args__: dict[str, Any] = {"extend_existing": True}
+    group_id: str = Field(default="", index=True, title="群组ID")
+    bot_id: str = Field(default="", title="Bot ID")
+    uid: str = Field(default="", index=True, title="角色roleId")
+    user_id: str = Field(default="", title="本群归属用户ID")
+    role_name: str = Field(default="", title="角色名")
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"onupdate": datetime.now},
+        title="更新时间",
+    )
+
+    @classmethod
+    @with_session
+    async def upsert_member(
+        cls: type[T_NTEGroupMember],
+        session: AsyncSession,
+        group_id: str,
+        bot_id: str,
+        user_id: str,
+        uid: str,
+        role_name: str,
+    ) -> None:
+        """登记某账号在某群参榜（按 group_id+uid 唯一）；命中旧行刷新归属 + 时间，否则新插。"""
+        now = datetime.now()
+        result = await session.execute(
+            select(cls).where(col(cls.group_id) == group_id, col(cls.bot_id) == bot_id, col(cls.uid) == uid)
+        )
+        row = result.scalars().first()
+        if row is not None:
+            row.user_id = user_id
+            row.role_name = role_name
+            row.updated_at = now
+            return
+        session.add(
+            cls(group_id=group_id, bot_id=bot_id, uid=uid, user_id=user_id, role_name=role_name, updated_at=now)
+        )
+
+    @classmethod
+    @with_session
+    async def list_members(
+        cls: type[T_NTEGroupMember],
+        session: AsyncSession,
+        group_id: str,
+        bot_id: str,
+    ) -> list[T_NTEGroupMember]:
+        """某群全部参榜账号（updated_at 倒序）。"""
+        result = await session.execute(
+            select(cls)
+            .where(col(cls.group_id) == group_id, col(cls.bot_id) == bot_id, col(cls.uid) != "")
+            .order_by(col(cls.updated_at).desc())
+        )
+        return list(result.scalars().all())
+
+    @classmethod
+    @with_session
+    async def delete_by_uids(
+        cls: type[T_NTEGroupMember],
+        session: AsyncSession,
+        bot_id: str,
+        uids: list[str],
+    ) -> int:
+        """登出：把这些 uid 从所有群榜上清掉。"""
+        if not uids:
+            return 0
+        result = cast(
+            CursorResult,
+            await session.execute(delete(cls).where(col(cls.bot_id) == bot_id, col(cls.uid).in_(uids))),
+        )
+        return result.rowcount
+
+
+class NTECharData(BaseIDModel, table=True):
+    """个人数据表，一行 = (uid, char_id)，取代旧的 playerinfo/{uid}.json 文件。
+    只放与角色绑定的数据：`detail`（该角色完整 JSON，觉醒 / 套装 等出榜字段都在里面）、
+    `score`（int 排序键走索引）和 `grade`（detail 里没有、我们算的；空 = 不可评分）。
+    身份（user_id / role_name）不在这里，统一从 NTEUser 按 uid 现查——本群排名 / bot排名
+    都这样取身份出榜 + 标红。排名只投影 (uid, score, grade) 按 score 倒序；展示的 ≤21 行
+    再按 uid 取 detail 解析出觉醒 / 套装。
+    """
+
+    __table_args__: dict[str, Any] = {"extend_existing": True}
+    uid: str = Field(default="", index=True, title="角色roleId")
+    char_id: str = Field(default="", index=True, title="可玩角色charId")
+    detail: str = Field(default="", title="该角色完整JSON")
+    score: int = Field(default=0, title="评分")
+    grade: str = Field(default="", title="评级(空=不可评分)")
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"onupdate": datetime.now},
+        title="更新时间",
+    )
+
+    @classmethod
+    @with_session
+    async def replace_for_uid(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        uid: str,
+        rows: list[dict[str, Any]],
+    ) -> None:
+        """刷新面板时整账号覆盖：先删该 uid 旧行，再按角色逐行插入（rows 只含 char_id/detail/score/grade）。"""
+        await session.execute(delete(cls).where(col(cls.uid) == uid))
+        for row in rows:
+            session.add(cls(uid=uid, **row))
+
+    @classmethod
+    @with_session
+    async def list_for_uid(cls: type[T_NTECharData], session: AsyncSession, uid: str) -> list[str]:
+        """某账号全部角色的 detail JSON（面板/详情卡用）。"""
+        result = await session.execute(select(cls.detail).where(col(cls.uid) == uid))
+        return list(result.scalars().all())
+
+    @classmethod
+    @with_session
+    async def rank_for_char(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        char_id: str,
+        uids: list[str] | None = None,
+    ) -> list[tuple[str, int, str]]:
+        """某角色可评分行按 score 倒序，投影 (uid, score, grade)。
+        `uids` 给定 = 本群排名（按这批 uid 过滤）；为 None = bot排名（扫全表）。
+        """
+        stmt = (
+            select(col(cls.uid), col(cls.score), col(cls.grade))
+            .where(col(cls.char_id) == char_id, col(cls.grade) != "")
+            .order_by(col(cls.score).desc())
+        )
+        if uids is not None:
+            if not uids:
+                return []
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        result = await session.execute(stmt)
+        return [(uid, score, grade) for uid, score, grade in result.all()]
+
+    @classmethod
+    @with_session
+    async def details_for(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        uids: list[str],
+        char_id: str,
+    ) -> dict[str, str]:
+        """出榜展示用：取这些 uid 该角色的 detail JSON，{uid: detail}。"""
+        if not uids:
+            return {}
+        result = await session.execute(
+            select(cls.uid, cls.detail).where(col(cls.char_id) == char_id, col(cls.uid).in_(uids))
+        )
+        return {uid: detail for uid, detail in result.all()}
+
+    @classmethod
+    @with_session
+    async def delete_by_uids(cls: type[T_NTECharData], session: AsyncSession, uids: list[str]) -> int:
+        """登出时清掉这些账号的个人数据。"""
+        if not uids:
+            return 0
+        result = cast(CursorResult, await session.execute(delete(cls).where(col(cls.uid).in_(uids))))
+        return result.rowcount
+
+
 @site.register_admin
 class NTEUserAdmin(GsAdminModel):
     pk_name = "id"
@@ -627,3 +847,17 @@ class NTESignRecordAdmin(GsAdminModel):
     pk_name = "id"
     page_schema = PageSchema(label="异环签到记录", icon="fa fa-calendar-check")  # type: ignore
     model = NTESignRecord
+
+
+@site.register_admin
+class NTEGroupMemberAdmin(GsAdminModel):
+    pk_name = "id"
+    page_schema = PageSchema(label="异环群成员", icon="fa fa-user-friends")  # type: ignore
+    model = NTEGroupMember
+
+
+@site.register_admin
+class NTECharDataAdmin(GsAdminModel):
+    pk_name = "id"
+    page_schema = PageSchema(label="异环个人数据", icon="fa fa-ranking-star")  # type: ignore
+    model = NTECharData
