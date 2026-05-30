@@ -11,6 +11,7 @@ from .role_service import (
     run_role_home,
     run_realestate,
     run_achievement,
+    run_character_level,
     run_character_detail,
     run_refresh_role_panel,
 )
@@ -25,6 +26,7 @@ from ..utils.constants import COMMAND_NAME_PATTERN
 from ..nte_config.nte_config import NTEConfig
 
 sv_nte_role_home = SV("nte角色面板")
+sv_nte_role_level = SV("nte角色练度")
 sv_nte_role_refresh = SV("nte刷新面板")
 sv_nte_role_detail = SV("nte角色详情")
 sv_nte_role_rank = SV("nte角色评分排名")
@@ -43,6 +45,11 @@ _STAMINA_CHECK_MIN = min(60, max(5, int(NTEConfig.get_config("NTEStaminaCheckMin
 @sv_nte_role_home.on_fullmatch(("查询", "卡片", "角色", "信息"), block=True)
 async def nte_role_home(bot: Bot, ev: Event):
     await run_role_home(bot, ev)
+
+
+@sv_nte_role_level.on_fullmatch(("练度", "练度统计", "角色练度"), block=True)
+async def nte_role_level(bot: Bot, ev: Event):
+    await run_character_level(bot, ev)
 
 
 @sv_nte_role_refresh.on_fullmatch(

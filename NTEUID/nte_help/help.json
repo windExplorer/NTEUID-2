@@ -96,6 +96,14 @@
                 "need_admin": false
             },
             {
+                "name": "练度",
+                "desc": "全角色练度统计表：按评分降序列出等级 / 觉醒 / 好感 / 战技 / 弧盘 / 套装评分",
+                "eg": "练度",
+                "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
                 "name": "角色排名",
                 "desc": "本群刷新过面板的号按该角色评分降序排行；加 bot 看bot（觉醒 / 套装 / 评分 / 评级）",
                 "eg": "娜娜莉<bot>排名",

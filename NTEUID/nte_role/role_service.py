@@ -6,6 +6,7 @@ from gsuid_core.utils.image.image_tools import get_event_avatar
 
 from ..utils.at import AtTarget, resolve_at_target
 from .role_card import draw_role_card_img
+from .level_card import draw_level_img
 from ..utils.msgs import RoleMsg, CharacterMsg, send_nte_notify
 from .explore_card import draw_explore_img
 from .refresh_card import draw_refresh_img
@@ -34,6 +35,23 @@ def _session_call(bot: Bot, ev: Event, target: AtTarget, *, tag: str, load_faile
     )
 
 
+async def _load_cached_characters(bot: Bot, ev: Event) -> tuple[NTEUser, list[CharacterDetail]] | None:
+    """解析 @目标 → 取活跃账号 → 读本地角色缓存；任一步缺数据发提示并返回 None。面板详情 / 练度统计共用。"""
+    target = await resolve_at_target(bot, ev)
+    if target is None:
+        return None
+    user = await NTEUser.get_active(target.user_id, ev.bot_id)
+    if user is None:
+        has_history = await NTEUser.has_logged_in_history(target.user_id, ev.bot_id)
+        await send_nte_notify(bot, ev, RoleMsg.not_logged_in(target.is_other, has_history=has_history))
+        return None
+    characters = await load_character_cache(user.uid)
+    if not characters:
+        await send_nte_notify(bot, ev, CharacterMsg.OTHER_LOCAL_EMPTY if target.is_other else CharacterMsg.LOCAL_EMPTY)
+        return None
+    return user, characters
+
+
 async def run_role_home(bot: Bot, ev: Event) -> None:
     target = await resolve_at_target(bot, ev)
     if target is None:
@@ -58,26 +76,24 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
     if not char_id:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
-    target = await resolve_at_target(bot, ev)
-    if target is None:
+    loaded = await _load_cached_characters(bot, ev)
+    if loaded is None:
         return
-
-    user = await NTEUser.get_active(target.user_id, ev.bot_id)
-    if user is None:
-        has_history = await NTEUser.has_logged_in_history(target.user_id, ev.bot_id)
-        return await send_nte_notify(bot, ev, RoleMsg.not_logged_in(target.is_other, has_history=has_history))
-
-    characters = await load_character_cache(user.uid)
-    if not characters:
-        return await send_nte_notify(
-            bot, ev, CharacterMsg.OTHER_LOCAL_EMPTY if target.is_other else CharacterMsg.LOCAL_EMPTY
-        )
+    user, characters = loaded
 
     char = next((character for character in characters if character.id == char_id), None)
     if char is None:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
     await bot.send(await draw_character_card_img(ev, char, user.role_name, user.uid))
+
+
+async def run_character_level(bot: Bot, ev: Event) -> None:
+    loaded = await _load_cached_characters(bot, ev)
+    if loaded is None:
+        return
+    user, characters = loaded
+    await bot.send(await draw_level_img(ev, user.role_name, user.uid, characters))
 
 
 async def run_refresh_role_panel(bot: Bot, ev: Event) -> None:
