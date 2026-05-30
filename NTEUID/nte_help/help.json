@@ -112,6 +112,22 @@
                 "need_admin": false
             },
             {
+                "name": "角色最强面板",
+                "desc": "本群该角色评分第一的账号面板；加 bot 看全服第一（头像取持有账号本人）",
+                "eg": "娜娜莉<bot>最强面板",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "最强排行",
+                "desc": "本群每个角色各取评分最强的号汇总排行；加 bot 看全服。按评分降序",
+                "eg": "<bot>最强排行",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
                 "name": "成就",
                 "desc": "异环成就进度卡：磁带数 / UMD 金银铜 / 8 大类目进度",
                 "eg": "成就",

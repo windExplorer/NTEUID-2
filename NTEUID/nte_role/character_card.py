@@ -4,9 +4,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from gsuid_core.models import Event
 from gsuid_core.utils.image.convert import convert_img
-from gsuid_core.utils.image.image_tools import get_event_avatar
 
 from .score import CharacterScore, EquipmentScore, score_character
 from .heartlike import heart_level
@@ -293,7 +291,7 @@ async def _draw_drive(
             cursor += 49
 
 
-async def draw_character_card_img(ev: Event, character: CharacterDetail, role_name: str, uid: str) -> bytes:
+async def draw_character_card_img(character: CharacterDetail, role_name: str, uid: str, avatar: Image.Image) -> bytes:
     suit_items = [*character.suit.core, *character.suit.pie] if character.suit.id else []
     score = score_character(character)
     equipment_scores: tuple[EquipmentScore | None, ...] = (None,) * len(suit_items)
@@ -305,9 +303,7 @@ async def draw_character_card_img(ev: Event, character: CharacterDetail, role_na
     height = BODY_TOP + 880 + (GAP + gear_h if gear_h else 0) + (GAP + drive_h if drive_h else 0) + 96
 
     canvas = get_nte_bg(WIDTH, height, bg="bg3")
-    title = make_nte_role_title(await get_event_avatar(ev), role_name, uid).resize(
-        (1060, 208), Image.Resampling.LANCZOS
-    )
+    title = make_nte_role_title(avatar, role_name, uid).resize((1060, 208), Image.Resampling.LANCZOS)
     canvas.alpha_composite(title, (20, 26))
     draw = ImageDraw.Draw(canvas)
 

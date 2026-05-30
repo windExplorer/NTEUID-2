@@ -3,7 +3,12 @@ from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
 
-from .rank_service import run_bot_rank, run_character_rank
+from .rank_service import (
+    run_bot_rank,
+    run_character_rank,
+    run_strongest_board,
+    run_strongest_panel,
+)
 from .role_service import (
     run_explore,
     run_realtime,
@@ -71,24 +76,32 @@ async def nte_role_refresh(bot: Bot, ev: Event):
 
 
 @sv_nte_role_detail.on_regex(
-    rf"^(?P<char_name>{COMMAND_NAME_PATTERN})(面板|信息|详情|面包|🍞)$",
+    # char_name 惰性匹配把可选 bot/最强 让给 scope/best；best=最强 → 该角色评分最强账号面板(bot=全服/空=本群)
+    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(?P<scope>bot)?(?P<best>最强)?(面板|信息|详情|面包|🍞)$",
     block=True,
 )
 async def nte_role_detail(bot: Bot, ev: Event):
-    await run_character_detail(bot, ev, ev.regex_dict["char_name"])
+    char_name = ev.regex_dict["char_name"]
+    if ev.regex_dict.get("best"):
+        await run_strongest_panel(bot, ev, char_name, bot_scope=ev.regex_dict.get("scope") == "bot")
+    else:
+        await run_character_detail(bot, ev, char_name)
 
 
 @sv_nte_role_rank.on_regex(
-    # scope: bot = 全服，群/空 = 本群；排名/排行/排行榜、可选「评分」都触发；一个 handler 内分发避免歧义
-    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(?P<scope>bot|群)?(?:评分)?(?:排名|排行榜|排行)$",
+    # 交替：board 分支(可选前置 bot)+「最强排行」字面量 = 每角色最强榜；否则走原单角色排名(scope 中置 bot/群)
+    rf"^(?:(?P<board_bot>bot)?(?P<board>最强排行)"
+    rf"|(?P<char_name>{COMMAND_NAME_PATTERN}?)(?P<scope>bot|群)?(?:评分)?(?:排名|排行榜|排行))$",
     block=True,
 )
 async def nte_role_rank(bot: Bot, ev: Event):
-    char_name = ev.regex_dict["char_name"]
-    if ev.regex_dict.get("scope") == "bot":
-        await run_bot_rank(bot, ev, char_name)
+    d = ev.regex_dict
+    if d.get("board"):
+        await run_strongest_board(bot, ev, bot_scope=d.get("board_bot") == "bot")
+    elif d.get("scope") == "bot":
+        await run_bot_rank(bot, ev, d["char_name"])
     else:
-        await run_character_rank(bot, ev, char_name)
+        await run_character_rank(bot, ev, d["char_name"])
 
 
 @sv_nte_achievement.on_fullmatch(("成就进度", "成就"))

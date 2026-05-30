@@ -42,7 +42,7 @@ class StaminaRoleState(BaseModel):
     today_pushed: int = 0
 
     def effective_threshold(self) -> int:
-        return self.threshold or _THRESHOLD_DEFAULT
+        return _THRESHOLD_DEFAULT if self.threshold is None else self.threshold
 
     def pushed_today(self, today: str) -> int:
         return self.today_pushed if self.last_push_date == today else 0
@@ -79,7 +79,7 @@ async def run_subscribe_stamina(bot: Bot, ev: Event, threshold_text: str = "") -
     state = _STAMINA_STATE_ADAPTER.validate_json(cast(str, existing.extra_message)) if existing else {}
     key = f"{user.game_id}:{user.uid}"
     subscribed = key in state
-    role_state = state.get(key, StaminaRoleState())
+    role_state = state[key] if subscribed else StaminaRoleState()
     if threshold is not None:
         role_state = role_state.model_copy(update={"threshold": threshold})
     state[key] = role_state

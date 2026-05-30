@@ -44,3 +44,19 @@ async def load_character_cache(role_id: str) -> list[CharacterDetail]:
         except (json.JSONDecodeError, ValidationError) as error:
             logger.warning(f"[NTE角色] 角色快照解析失败 uid={role_id}: {error!r}")
     return out
+
+
+async def load_character_detail_cache(role_id: str, char_id: str) -> CharacterDetail | None:
+    """从数据库精确读取某账号的某个角色 detail；单角色面板用。"""
+    detail = await NTECharData.detail_for_uid_char(role_id, char_id)
+    if detail is None:
+        return None
+    try:
+        return CharacterDetail.model_validate(json.loads(detail))
+    except (json.JSONDecodeError, ValidationError) as error:
+        logger.warning(f"[NTE角色] 角色快照解析失败 uid={role_id} char={char_id}: {error!r}")
+        return None
+
+
+async def has_character_cache(role_id: str) -> bool:
+    return await NTECharData.has_for_uid(role_id)

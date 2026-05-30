@@ -8,11 +8,10 @@ from PIL import Image, ImageDraw, ImageChops
 
 from gsuid_core.models import Event
 from gsuid_core.utils.image.convert import convert_img
-from gsuid_core.utils.image.image_tools import get_qq_avatar, get_event_avatar
 
-from ..utils.cache import TimedCache
 from ..utils.image import COLOR_WHITE, SmoothDrawer, add_footer, get_nte_bg, open_texture, char_img_ring
-from ..utils.resource.cdn import get_avatar_img, get_char_detail_img, get_char_suit_detail_img
+from ..utils.avatar import fetch_avatar
+from ..utils.resource.cdn import get_char_detail_img, get_char_suit_detail_img
 from ..utils.fonts.nte_fonts import nte_font_origin
 
 CHAR_TEX = Path(__file__).parent / "texture2d" / "character"
@@ -49,29 +48,9 @@ class RankEntry:
     grade: str
 
 
-_AVATAR_CACHE = TimedCache(timeout=3600.0, maxsize=512)
-
-
 @lru_cache(maxsize=8)
 def _asset(name: str) -> Image.Image:
     return open_texture(RANK_TEX / name)
-
-
-async def _avatar(ev: Event, user_id: str, char_id: str) -> Image.Image:
-    """展示行头像（≤21 个）。有身份取 QQ 头像（按 user_id 缓存 1 小时）；
-    无身份（孤儿行 user_id 为空）回退该角色头像，再拿不到给个深色占位。"""
-    if user_id:
-        hit = _AVATAR_CACHE.get(user_id)
-        if hit is not None:
-            return hit
-        try:
-            img = await get_event_avatar(ev) if user_id == ev.user_id else await get_qq_avatar(user_id)
-            _AVATAR_CACHE.set(user_id, img)
-            return img
-        except Exception:
-            pass
-    char = await get_avatar_img(char_id)
-    return char if char is not None else Image.new("RGBA", (200, 200), (40, 36, 60, 255))
 
 
 @lru_cache(maxsize=4)
@@ -200,7 +179,7 @@ async def draw_rank_img(
     display = [(i + 1, e, e.user_id == ev.user_id) for i, e in enumerate(entries)]
     if self_overflow is not None:
         display.append((self_overflow[0], self_overflow[1], True))
-    avatars = [await _avatar(ev, e.user_id, char_id) for _, e, _ in display]
+    avatars = [await fetch_avatar(ev, e.user_id) for _, e, _ in display]
 
     overflow_gap = 34 if self_overflow is not None else 0
     height = HEADER_H + len(display) * ROW_H + max(0, len(display) - 1) * ROW_GAP + overflow_gap + 110

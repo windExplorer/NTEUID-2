@@ -16,7 +16,12 @@ from ..utils.session import SessionCall
 from .character_card import draw_character_card_img
 from .character_sort import diff_characters, sort_characters
 from ..utils.database import NTEUser, NTEGroupMember
-from .character_cache import load_character_cache, save_character_cache
+from .character_cache import (
+    has_character_cache,
+    load_character_cache,
+    save_character_cache,
+    load_character_detail_cache,
+)
 from .realestate_card import draw_realestate_img
 from .achievement_card import draw_achievement_img
 from ..utils.name_convert import CHARS
@@ -36,7 +41,19 @@ def _session_call(bot: Bot, ev: Event, target: AtTarget, *, tag: str, load_faile
 
 
 async def _load_cached_characters(bot: Bot, ev: Event) -> tuple[NTEUser, list[CharacterDetail]] | None:
-    """解析 @目标 → 取活跃账号 → 读本地角色缓存；任一步缺数据发提示并返回 None。面板详情 / 练度统计共用。"""
+    """解析 @目标 → 取活跃账号 → 读本地角色缓存；任一步缺数据发提示并返回 None。"""
+    active = await _load_active_user(bot, ev)
+    if active is None:
+        return None
+    user, target = active
+    characters = await load_character_cache(user.uid)
+    if not characters:
+        await send_nte_notify(bot, ev, CharacterMsg.OTHER_LOCAL_EMPTY if target.is_other else CharacterMsg.LOCAL_EMPTY)
+        return None
+    return user, characters
+
+
+async def _load_active_user(bot: Bot, ev: Event) -> tuple[NTEUser, AtTarget] | None:
     target = await resolve_at_target(bot, ev)
     if target is None:
         return None
@@ -45,11 +62,7 @@ async def _load_cached_characters(bot: Bot, ev: Event) -> tuple[NTEUser, list[Ch
         has_history = await NTEUser.has_logged_in_history(target.user_id, ev.bot_id)
         await send_nte_notify(bot, ev, RoleMsg.not_logged_in(target.is_other, has_history=has_history))
         return None
-    characters = await load_character_cache(user.uid)
-    if not characters:
-        await send_nte_notify(bot, ev, CharacterMsg.OTHER_LOCAL_EMPTY if target.is_other else CharacterMsg.LOCAL_EMPTY)
-        return None
-    return user, characters
+    return user, target
 
 
 async def run_role_home(bot: Bot, ev: Event) -> None:
@@ -76,16 +89,19 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
     if not char_id:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
-    loaded = await _load_cached_characters(bot, ev)
-    if loaded is None:
+    active = await _load_active_user(bot, ev)
+    if active is None:
         return
-    user, characters = loaded
-
-    char = next((character for character in characters if character.id == char_id), None)
+    user, target = active
+    char = await load_character_detail_cache(user.uid, char_id)
     if char is None:
+        if not await has_character_cache(user.uid):
+            return await send_nte_notify(
+                bot, ev, CharacterMsg.OTHER_LOCAL_EMPTY if target.is_other else CharacterMsg.LOCAL_EMPTY
+            )
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
-    await bot.send(await draw_character_card_img(ev, char, user.role_name, user.uid))
+    await bot.send(await draw_character_card_img(char, user.role_name, user.uid, await get_event_avatar(ev)))
 
 
 async def run_character_level(bot: Bot, ev: Event) -> None:

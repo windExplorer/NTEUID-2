@@ -129,6 +129,19 @@ def _vgrad(w: int, h: int, color: tuple[int, int, int], a_top: int, a_bottom: in
     return strip.resize((w, h), Image.Resampling.BILINEAR)
 
 
+@lru_cache(maxsize=1)
+def _title_banner() -> Image.Image:
+    return ImageOps.fit(
+        open_texture(LEVEL_TEX / "title.png"), (WIDTH, BANNER_H), method=Image.Resampling.LANCZOS, centering=(0.5, 0.3)
+    )
+
+
+@lru_cache(maxsize=1)
+def _marquee() -> Image.Image:
+    return open_texture(LEVEL_TEX / "marquee.png", (ROW_W, 54))
+
+
+@lru_cache(maxsize=8)
 def _stretch_bar(name: str, height: int, cap: int) -> Image.Image:
     """切角条带按目标高度等比缩放，再横向只拉中段到 ROW_W：左右端(像素格/切角)保持原比例不变形。"""
     asset = open_texture(LEVEL_TEX / name)
@@ -148,10 +161,7 @@ def _stretch_bar(name: str, height: int, cap: int) -> Image.Image:
 async def _draw_banner(
     canvas: Image.Image, draw: ImageDraw.ImageDraw, ev: Event, role_name: str, uid: str, total: int
 ) -> None:
-    banner = ImageOps.fit(
-        open_texture(LEVEL_TEX / "title.png"), (WIDTH, BANNER_H), method=Image.Resampling.LANCZOS, centering=(0.5, 0.3)
-    )
-    canvas.alpha_composite(banner, (0, 0))
+    canvas.alpha_composite(_title_banner(), (0, 0))
     canvas.alpha_composite(_vgrad(WIDTH, 176, (8, 6, 20), 0, 220), (0, BANNER_H - 176))
 
     draw.text((48, 96), "面板练度统计", font=nte_font_origin(62), fill=COLOR_WHITE, anchor="lm")
@@ -277,6 +287,6 @@ async def draw_level_img(ev: Event, role_name: str, uid: str, characters: list[C
         )
         y += ROW_H + ROW_GAP
 
-    canvas.alpha_composite(open_texture(LEVEL_TEX / "marquee.png", (ROW_W, 54)), (ROW_X0, y + 8))
+    canvas.alpha_composite(_marquee(), (ROW_X0, y + 8))
     add_footer(canvas)
     return await convert_img(canvas)

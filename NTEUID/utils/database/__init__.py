@@ -5,7 +5,7 @@ from typing import Any, TypeVar, cast
 from datetime import datetime
 
 from sqlmodel import Field, col, select
-from sqlalchemy import func, delete, update
+from sqlalchemy import or_, and_, func, delete, tuple_, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,14 @@ exec_list.extend(
         "ALTER TABLE NTEUser ADD COLUMN xhh_pkey TEXT DEFAULT ''",
         "CREATE INDEX IF NOT EXISTS ix_nteuser_uid ON NTEUser (uid)",
         "CREATE INDEX IF NOT EXISTS ix_nteuser_user_id ON NTEUser (user_id)",
+        # 评分榜走 char_id + score 排序，只回展示行；uid/grade 放进索引减少回表。
+        "CREATE INDEX IF NOT EXISTS ix_ntechardata_char_id_score_uid ON ntechardata (char_id, score DESC, uid, grade)",
+        # 排行展示按 (char_id, uid) 批量取 detail。
+        "CREATE INDEX IF NOT EXISTS ix_ntechardata_char_id_uid ON ntechardata (char_id, uid)",
+        # 群榜取本群参榜账号时同时过滤 bot_id，并按更新时间展示。
+        "CREATE INDEX IF NOT EXISTS ix_ntegroupmember_group_bot_updated ON ntegroupmember (group_id, bot_id, updated_at DESC)",
+        # 刷新面板登记群参榜账号时按 group_id + bot_id + uid 查旧行。
+        "CREATE INDEX IF NOT EXISTS ix_ntegroupmember_group_bot_uid ON ntegroupmember (group_id, bot_id, uid)",
     ]
 )
 
@@ -788,11 +796,33 @@ class NTECharData(BaseIDModel, table=True):
 
     @classmethod
     @with_session
+    async def has_for_uid(cls: type[T_NTECharData], session: AsyncSession, uid: str) -> bool:
+        """判断某账号是否已有任何角色快照。"""
+        result = await session.execute(select(cls.id).where(col(cls.uid) == uid).limit(1))
+        return result.scalars().first() is not None
+
+    @classmethod
+    @with_session
+    async def detail_for_uid_char(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        uid: str,
+        char_id: str,
+    ) -> str | None:
+        """单角色详情用：按账号和角色直接取一条 detail JSON。"""
+        result = await session.execute(
+            select(cls.detail).where(col(cls.char_id) == char_id, col(cls.uid) == uid).limit(1)
+        )
+        return result.scalars().first()
+
+    @classmethod
+    @with_session
     async def rank_for_char(
         cls: type[T_NTECharData],
         session: AsyncSession,
         char_id: str,
         uids: list[str] | None = None,
+        limit: int | None = None,
     ) -> list[tuple[str, int, str]]:
         """某角色可评分行按 score 倒序，投影 (uid, score, grade)。
         `uids` 给定 = 本群排名（按这批 uid 过滤）；为 None = bot排名（扫全表）。
@@ -800,14 +830,109 @@ class NTECharData(BaseIDModel, table=True):
         stmt = (
             select(col(cls.uid), col(cls.score), col(cls.grade))
             .where(col(cls.char_id) == char_id, col(cls.grade) != "")
-            .order_by(col(cls.score).desc())
+            .order_by(col(cls.score).desc(), col(cls.uid).asc())
         )
         if uids is not None:
             if not uids:
                 return []
             stmt = stmt.where(col(cls.uid).in_(uids))
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await session.execute(stmt)
         return [(uid, score, grade) for uid, score, grade in result.all()]
+
+    @classmethod
+    @with_session
+    async def count_for_char(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        char_id: str,
+        uids: list[str] | None = None,
+    ) -> int:
+        """某角色可评分账号数，给排行标题用，避免把全榜拉回 Python 后再 len。"""
+        stmt = select(func.count()).select_from(cls).where(col(cls.char_id) == char_id, col(cls.grade) != "")
+        if uids is not None:
+            if not uids:
+                return 0
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+    @classmethod
+    @with_session
+    async def best_for_char(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        char_id: str,
+        uids: list[str] | None = None,
+    ) -> tuple[str, int, str] | None:
+        """某角色最高分账号；最强面板只需要第一名，不能复用全榜查询。"""
+        stmt = (
+            select(col(cls.uid), col(cls.score), col(cls.grade))
+            .where(col(cls.char_id) == char_id, col(cls.grade) != "")
+            .order_by(col(cls.score).desc(), col(cls.uid).asc())
+            .limit(1)
+        )
+        if uids is not None:
+            if not uids:
+                return None
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        result = await session.execute(stmt)
+        row = result.first()
+        if row is None:
+            return None
+        uid, score, grade = row
+        return uid, score, grade
+
+    @classmethod
+    @with_session
+    async def rank_position_for_char(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        char_id: str,
+        uid: str,
+        score: int,
+        uids: list[str] | None = None,
+    ) -> int:
+        """按 rank_for_char 的排序规则计算单行名次，用于只补一条掉榜自己的记录。"""
+        stmt = (
+            select(func.count())
+            .select_from(cls)
+            .where(
+                col(cls.char_id) == char_id,
+                col(cls.grade) != "",
+                or_(col(cls.score) > score, and_(col(cls.score) == score, col(cls.uid) < uid)),
+            )
+        )
+        if uids is not None:
+            if not uids:
+                return 1
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        result = await session.execute(stmt)
+        return int(result.scalar_one()) + 1
+
+    @classmethod
+    @with_session
+    async def strongest_per_char(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        uids: list[str] | None = None,
+    ) -> list[tuple[str, str, int, str]]:
+        """每个角色评分最高的一行 (char_id, uid, score, grade)，按 score 降序——最强排行用。
+        `uids` 给定 = 本群(按这批号过滤)；None = bot(全表)。
+        DB 侧 `GROUP BY char_id` + `MAX(score)` 直接算完，只回每角色一行(~几十行)——
+        不把全表(用户数×角色数)行 transfer 到 Python；SQLite bare column uid/grade 跟随 MAX 那行。
+        """
+        max_score = func.max(col(cls.score)).label("score")
+        stmt = select(col(cls.char_id), col(cls.uid), max_score, col(cls.grade)).where(col(cls.grade) != "")
+        if uids is not None:
+            if not uids:
+                return []
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        stmt = stmt.group_by(col(cls.char_id))
+        result = await session.execute(stmt)
+        rows = [(char_id, uid, score, grade) for char_id, uid, score, grade in result.all()]
+        return sorted(rows, key=lambda row: row[2], reverse=True)
 
     @classmethod
     @with_session
@@ -824,6 +949,21 @@ class NTECharData(BaseIDModel, table=True):
             select(cls.uid, cls.detail).where(col(cls.char_id) == char_id, col(cls.uid).in_(uids))
         )
         return {uid: detail for uid, detail in result.all()}
+
+    @classmethod
+    @with_session
+    async def details_for_pairs(
+        cls: type[T_NTECharData],
+        session: AsyncSession,
+        pairs: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], str]:
+        """按 (uid, char_id) 批量取 detail，给跨角色最强榜用。"""
+        if not pairs:
+            return {}
+        result = await session.execute(
+            select(cls.uid, cls.char_id, cls.detail).where(tuple_(col(cls.uid), col(cls.char_id)).in_(pairs))
+        )
+        return {(uid, char_id): detail for uid, char_id, detail in result.all()}
 
     @classmethod
     @with_session
