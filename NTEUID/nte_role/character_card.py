@@ -4,11 +4,21 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from gsuid_core.logger import logger
 from gsuid_core.utils.image.convert import convert_img
 
 from .score import CharacterScore, EquipmentScore, score_character
 from .heartlike import heart_level
-from ..utils.image import COLOR_WHITE, SmoothDrawer, add_footer, get_nte_bg, open_texture, make_nte_role_title
+from ..utils.image import (
+    COLOR_WHITE,
+    COLOR_SUBTEXT,
+    SmoothDrawer,
+    add_footer,
+    get_nte_bg,
+    open_texture,
+    make_nte_role_title,
+)
+from ..utils.damage.buffs import enemy_mods, scan_character_buffs
 from ..utils.resource.cdn import (
     get_weapon_img,
     get_char_skill_img,
@@ -18,6 +28,9 @@ from ..utils.resource.cdn import (
     get_char_city_skill_img,
     get_char_suit_drive_img,
 )
+from ..utils.damage.models import ScaleStat, CharacterDamage
+from ..utils.damage.profiles import build_member_damage
+from ..utils.damage.settings import base_enemy
 from ..utils.fonts.nte_fonts import nte_font_origin
 from ..utils.sdk.tajiduo_model import (
     CharacterFork,
@@ -33,6 +46,7 @@ GAP = 28
 TEX = Path(__file__).parent / "texture2d" / "character"
 
 ROW_HILITE = (255, 0, 235)
+CRIT_COLOR = (255, 184, 120)
 ZERO_VALUES = {"", "0", "0%", "0.0", "0.0%"}
 
 
@@ -291,6 +305,98 @@ async def _draw_drive(
             cursor += 49
 
 
+def _compute_damage(character: CharacterDetail) -> CharacterDamage | None:
+    """按配置敌人等级算单角色面板伤害（含自身条件增益满覆盖）；异常就跳过伤害区块，不连累整张卡。"""
+    try:
+        scan = scan_character_buffs(character)
+        def_reduction, res_reduction = enemy_mods(scan.enemy_debuffs)
+        enemy = base_enemy(def_reduction=def_reduction, res_reduction=res_reduction)
+        damage, _ = build_member_damage(character, enemy, [*scan.team_buffs, *scan.self_buffs])
+    except (KeyError, ValueError) as error:
+        logger.debug(f"[NTE伤害] 跳过面板伤害 char={character.id}: {error!r}")
+        return None
+    return damage if damage.abilities else None
+
+
+def _damage_section_height(damage: CharacterDamage) -> int:
+    height = 76 + 116 + 36  # 标题栏 + 乘区拆解条 + 列头
+    for ability in damage.abilities:
+        height += 54 + len(ability.segments) * 40 + 12
+    return height
+
+
+def _draw_damage(
+    canvas: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    top: int,
+    damage: CharacterDamage,
+    accent: tuple[int, int, int],
+) -> None:
+    drawer = SmoothDrawer()
+    x0, x1 = 20, 1080
+    col_pct, col_exp, col_crit = 560, 824, 1060
+
+    drawer.rounded_rectangle((x0, top, x1, top + 64), 16, fill=(*accent, 235), target=canvas)
+    draw.text((x0 + 28, top + 32), "伤害测算", font=nte_font_origin(34), fill=COLOR_WHITE, anchor="lm")
+    draw.text(
+        (x1 - 24, top + 32),
+        f"对 {damage.context.enemy.level} 级敌人 · 直伤",
+        font=nte_font_origin(22),
+        fill=COLOR_WHITE,
+        anchor="rm",
+    )
+
+    y = top + 76
+    ctx = damage.context
+    drawer.rounded_rectangle((x0, y, x1, y + 88), 16, fill=(28, 32, 44, 210), target=canvas)
+    cells = (
+        ("总攻击力", f"{ctx.panel.atk:.0f}"),
+        ("增伤区", f"×{ctx.dmg_bonus_mult:.2f}"),
+        ("暴击期望", f"×{ctx.crit_expected_mult:.2f}"),
+        ("防御区", f"×{ctx.def_mult:.2f}"),
+        ("抗性区", f"×{ctx.res_mult:.2f}"),
+    )
+    cell_w = (x1 - x0) // len(cells)
+    for index, (label, value) in enumerate(cells):
+        cx = x0 + cell_w * index + cell_w // 2
+        draw.text((cx, y + 30), label, font=nte_font_origin(22), fill=COLOR_SUBTEXT, anchor="mm")
+        draw.text((cx, y + 60), value, font=nte_font_origin(30), fill=COLOR_WHITE, anchor="mm")
+
+    y += 88 + GAP
+    draw.text((52, y + 18), "技能 / 倍率", font=nte_font_origin(22), fill=COLOR_SUBTEXT, anchor="lm")
+    draw.text((col_exp, y + 18), "期望", font=nte_font_origin(22), fill=COLOR_SUBTEXT, anchor="rm")
+    draw.text((col_crit, y + 18), "暴击", font=nte_font_origin(22), fill=COLOR_SUBTEXT, anchor="rm")
+    y += 36
+
+    for ability in damage.abilities:
+        drawer.rounded_rectangle((x0, y, x1, y + 48), 12, fill=(*accent, 96), target=canvas)
+        draw.text(
+            (x0 + 20, y + 24),
+            f"{ability.type_name}·{ability.name}",
+            font=nte_font_origin(26),
+            fill=COLOR_WHITE,
+            anchor="lm",
+        )
+        draw.text(
+            (x1 - 20, y + 24),
+            f"Lv{ability.level}  循环期望 {ability.rotation_expected:,.0f}",
+            font=nte_font_origin(22),
+            fill=COLOR_WHITE,
+            anchor="rm",
+        )
+        y += 54
+        for seg in ability.segments:
+            suffix = "" if seg.scale is ScaleStat.ATK else f"·{seg.scale.label}"
+            draw.text((52, y + 20), f"{seg.name}{suffix}", font=nte_font_origin(24), fill=COLOR_WHITE, anchor="lm")
+            draw.text((col_pct, y + 20), f"{seg.pct:.0f}%", font=nte_font_origin(24), fill=COLOR_SUBTEXT, anchor="rm")
+            draw.text(
+                (col_exp, y + 20), f"{seg.expected:,.0f}", font=nte_font_origin(26), fill=COLOR_WHITE, anchor="rm"
+            )
+            draw.text((col_crit, y + 20), f"{seg.crit:,.0f}", font=nte_font_origin(24), fill=CRIT_COLOR, anchor="rm")
+            y += 40
+        y += 12
+
+
 async def draw_character_card_img(character: CharacterDetail, role_name: str, uid: str, avatar: Image.Image) -> bytes:
     suit_items = [*character.suit.core, *character.suit.pie] if character.suit.id else []
     score = score_character(character)
@@ -300,7 +406,16 @@ async def draw_character_card_img(character: CharacterDetail, role_name: str, ui
     drive_rows = (len(suit_items) + 2) // 3
     drive_h = 0 if not suit_items else drive_rows * 554 + (drive_rows - 1) * GAP
     gear_h = 272 if suit_items or character.fork.id else 0
-    height = BODY_TOP + 880 + (GAP + gear_h if gear_h else 0) + (GAP + drive_h if drive_h else 0) + 96
+    damage = _compute_damage(character)
+    damage_h = _damage_section_height(damage) if damage is not None else 0
+    height = (
+        BODY_TOP
+        + 880
+        + (GAP + gear_h if gear_h else 0)
+        + (GAP + drive_h if drive_h else 0)
+        + (GAP + damage_h if damage_h else 0)
+        + 96
+    )
 
     canvas = get_nte_bg(WIDTH, height, bg="bg3")
     title = make_nte_role_title(avatar, role_name, uid).resize((1060, 208), Image.Resampling.LANCZOS)
@@ -353,6 +468,10 @@ async def draw_character_card_img(character: CharacterDetail, role_name: str, ui
             score,
             equipment_scores[index],
         )
+
+    if damage is not None:
+        damage_top = cursor + (drive_h + GAP if suit_items else 0)
+        _draw_damage(canvas, draw, damage_top, damage, character.element_type.color)
 
     add_footer(canvas)
     return await convert_img(canvas)
