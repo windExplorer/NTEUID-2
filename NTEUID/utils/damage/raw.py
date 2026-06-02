@@ -34,6 +34,7 @@ class RawAbility(_Base):
 
 class RawEffect(_Base):
     desc: str = ""
+    awaken_num: int = 0  # 共鸣解锁所需的觉醒等级（共鸣1=3、共鸣2=6）；觉醒条目无此字段，缺省 0
 
 
 class RawCharData(_Base):

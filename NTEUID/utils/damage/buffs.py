@@ -235,13 +235,24 @@ def _skill_texts(char_id: str) -> tuple[str, ...]:
 
 
 @lru_cache(maxsize=64)
-def _effect_texts(char_id: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """返回 (觉醒6条全量描述, 共鸣各档描述)。觉醒**保持下标对齐**（EffectN→awaken[N-1]），不能按 desc 过滤。"""
+def _awaken_texts(char_id: str) -> tuple[str, ...]:
+    """觉醒6条全量描述。**保持下标对齐**（EffectN→awaken[N-1]），不能按 desc 过滤。"""
     path = _CHAR_DATA_PATH / f"{char_id}.json"
     if not path.exists():
-        return (), ()
+        return ()
     raw = RawCharData.model_validate_json(path.read_text(encoding="utf-8"))
-    return tuple(a.desc for a in raw.awaken), tuple(r.desc for r in raw.resonance)
+    return tuple(a.desc for a in raw.awaken)
+
+
+@lru_cache(maxsize=64)
+def resonance_effects(char_id: str) -> tuple[tuple[str, int], ...]:
+    """共鸣条目 (描述, 解锁所需觉醒等级 awaken_num)。共鸣1=觉3(技能等级提升)、共鸣2=觉6(战斗增益)。
+    按 awaken_num 解锁（**不是**按列表前 slev 个切片）。"""
+    path = _CHAR_DATA_PATH / f"{char_id}.json"
+    if not path.exists():
+        return ()
+    raw = RawCharData.model_validate_json(path.read_text(encoding="utf-8"))
+    return tuple((r.desc, r.awaken_num) for r in raw.resonance)
 
 
 def _chosen_awaken(awaken_all: tuple[str, ...], awaken_effect: list[str]) -> list[str]:
@@ -331,13 +342,13 @@ def scan_character_buffs(character: CharacterDetail) -> BuffScan:
     enemy: list[EnemyDebuff] = []
     unparsed: list[str] = []
     orphans: list[str] = []
-    # 觉醒可选：按面板 awaken_effect 选中的 Effect 取对应那条（非顺序前N）；共鸣按混频 slev 切片。
-    awaken_all, resonance_texts = _effect_texts(character.id)
+    # 觉醒可选：按面板 awaken_effect 选中的 Effect 取对应那条（非顺序前N）；共鸣按 awaken_lev 解锁（觉≥3/觉≥6）。
+    awaken_lev = character.awaken_lev  # 共鸣由觉醒等级解锁，非按列表前 N 个切片
     sources: list[tuple[str, str]] = [
         ("套装4件", character.suit.des4),
         ("武器", _resolve_fork_effect(character.fork)),
-        *[("觉醒", text) for text in _chosen_awaken(awaken_all, character.awaken_effect)],
-        *[("共鸣", text) for text in resonance_texts[: character.slev]],
+        *[("觉醒", text) for text in _chosen_awaken(_awaken_texts(character.id), character.awaken_effect)],
+        *[("共鸣", desc) for desc, awaken_num in resonance_effects(character.id) if awaken_lev >= awaken_num],
         *[("技能", text) for text in _skill_texts(character.id)],
     ]
     for source, raw_text in sources:

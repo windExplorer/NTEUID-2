@@ -7,7 +7,7 @@ from dataclasses import replace, dataclass
 from collections.abc import Sequence
 
 from .raw import RawCharData
-from .buffs import ParsedBuff, bundle_from, segment_mult, bundle_for_segment
+from .buffs import ParsedBuff, bundle_from, segment_mult, resonance_effects, bundle_for_segment
 from .models import (
     NEUTRAL_BUNDLE,
     ScaleStat,
@@ -234,6 +234,48 @@ def _segment_bundle(
     )
 
 
+# 共鸣1「技能等级提升N级」点名的技能 → 对应 ability.type +N。文案有两种形态：
+#   前缀式「极轨终结：奥义·X」（多数角色）与 纯技能名「奇零除尽」（异能者·零）。
+# 两者都要命中，故用「类型前缀关键词」OR「ability.name 归一化命中」双判定。
+_TYPE_KEYWORD: dict[str, str] = {
+    "melee": "普通攻击",
+    "skill": "变轨技能",
+    "ultraskill": "极轨终结",
+    "qte": "援护技",
+}
+_SKILL_LEVEL_UP_RE = re.compile(r"技能等级提升\s*(\d+)\s*级")
+
+
+def _norm_skill_text(text: str) -> str:
+    """去标签 + 去括号/空白，消除文案与 ability.name 间的标点差异（『』vs「」、奥义· X 的空格）。"""
+    return re.sub(r"[「」『』【】《》\s]", "", re.sub(r"<[^>]+>", "", text))
+
+
+def _resonance_skill_bonus(character: CharacterDetail, profiles: dict[str, _AbilityProfile]) -> dict[str, int]:
+    """共鸣1「技能等级提升N级」对各技能类型(ability.type)的等级加成。
+
+    面板 skill.level 是玩家投入的技能等级，不含共鸣的隐藏 +N（实测觉6 角色面板各技能仍显示
+    投入等级），结算倍率时必须补回，否则觉≥3 角色被低估。觉醒未达 awaken_num 的共鸣不计。
+    """
+    bonus: dict[str, int] = {}
+    for desc, awaken_num in resonance_effects(character.id):
+        if character.awaken_lev < awaken_num:
+            continue
+        clean = re.sub(r"<[^>]+>", "", desc)
+        match = _SKILL_LEVEL_UP_RE.search(clean)
+        if match is None:  # 该条共鸣不是「技能等级提升」型（如小吱的金谷效率）
+            continue
+        levels = int(match.group(1))
+        norm_desc = _norm_skill_text(desc)
+        for profile in profiles.values():
+            keyword = _TYPE_KEYWORD.get(profile.type)
+            if keyword is None:  # 仅 melee/skill/ultraskill/qte 计入，跳过 passive/city
+                continue
+            if keyword in norm_desc or (profile.name and _norm_skill_text(profile.name) in norm_desc):
+                bonus[profile.type] = max(bonus.get(profile.type, 0), levels)
+    return bonus
+
+
 def build_character_damage(
     character: CharacterDetail,
     enemy: EnemyProfile,
@@ -248,6 +290,7 @@ def build_character_damage(
     panel = parse_panel(character)
     profiles = load_ability_profiles(character.id)
     element = character.element_type.label
+    skill_bonus = _resonance_skill_bonus(character, profiles)
 
     abilities: list[AbilityDamage] = []
     for skill in character.skills:
@@ -256,7 +299,7 @@ def build_character_damage(
         profile = profiles.get(skill.id.lower())
         if profile is None or not profile.damage_stats:
             continue
-        level_idx = max(0, skill.level - 1)
+        level_idx = max(0, skill.level - 1) + skill_bonus.get(profile.type, 0)
         segments_list = []
         for stat in profile.damage_stats:
             pct, flat, scale = _eval_template(stat, level_idx)
