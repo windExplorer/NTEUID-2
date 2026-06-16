@@ -4,7 +4,6 @@ from datetime import timedelta
 
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
-from gsuid_core.segment import MessageSegment
 
 from ..utils.msgs import TITLE, BindMsg, CommonMsg, send_nte_notify
 from ..utils.database import NTEUser
@@ -36,8 +35,6 @@ async def view_bindings(bot: Bot, ev: Event) -> None:
     msg = "\n".join(lines)
     if len(accounts) < 2:
         await send_nte_notify(bot, ev, msg)
-    elif ev.group_id and ev.user_id is not None:
-        await bot.send_option([MessageSegment.at(ev.user_id), MessageSegment.text(f"{TITLE}{msg}")], switch_buttons())
     else:
         await bot.send_option(f"{TITLE}{msg}", switch_buttons())
 
@@ -62,10 +59,7 @@ async def switch_binding(bot: Bot, ev: Event, target: str) -> None:
         )
     await NTEUser.touch_account(ev.user_id, ev.bot_id, account.center_uid)
     msg = BindMsg.switch_done(account.center_uid, account.role_name, account.uid)
-    if ev.group_id and ev.user_id is not None:
-        await bot.send_option([MessageSegment.at(ev.user_id), MessageSegment.text(f"{TITLE}{msg}")], switched_buttons())
-    else:
-        await bot.send_option(f"{TITLE}{msg}", switched_buttons())
+    await bot.send_option(f"{TITLE}{msg}", switched_buttons())
 
 
 async def get_laohu_tokens(bot: Bot, ev: Event) -> None:

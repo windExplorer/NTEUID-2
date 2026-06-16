@@ -3,7 +3,6 @@ from __future__ import annotations
 from gsuid_core.bot import Bot
 from gsuid_core.logger import logger
 from gsuid_core.models import Event
-from gsuid_core.segment import MessageSegment
 from gsuid_core.ai_core.register import ai_tools
 
 from ..utils.msgs import TITLE, LoginMsg, send_nte_notify
@@ -209,10 +208,7 @@ async def nte_sign(bot: Bot, ev: Event) -> str:
     if err:
         return err
     result = await run_user_sign(ev.user_id, ev.bot_id)
-    if ev.group_id and ev.user_id is not None:
-        await bot.send_option([MessageSegment.at(ev.user_id), MessageSegment.text(f"{TITLE}{result}")], sign_buttons())
-    else:
-        await bot.send_option(f"{TITLE}{result}", sign_buttons())
+    await bot.send_option(f"{TITLE}{result}", sign_buttons())
     return "已执行异环签到并发送结果。"
 
 

@@ -72,8 +72,6 @@ async def _load_active_user(bot: Bot, ev: Event) -> tuple[NTEUser, AtTarget] | N
         msg = RoleMsg.not_logged_in(target.is_other, has_history=has_history)
         if buttons is None:
             await send_nte_notify(bot, ev, msg)
-        elif ev.group_id and ev.user_id is not None:
-            await bot.send_option([MessageSegment.at(ev.user_id), MessageSegment.text(f"{TITLE}{msg}")], buttons)
         else:
             await bot.send_option(f"{TITLE}{msg}", buttons)
         return None

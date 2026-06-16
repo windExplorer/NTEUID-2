@@ -5,7 +5,6 @@ from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
 from gsuid_core.logger import logger
 from gsuid_core.models import Event
-from gsuid_core.segment import MessageSegment
 
 from .sign_push import push_sign_reports
 from ..utils.msgs import TITLE, SignMsg, CommonMsg, send_nte_notify
@@ -55,9 +54,6 @@ _sign_hour, _sign_minute = _parse_sign_time()
 @sv_nte_sign.on_fullmatch(("签到", "日签"))
 async def nte_manual_sign(bot: Bot, ev: Event):
     msg = await run_user_sign(ev.user_id, ev.bot_id)
-    if ev.group_id and ev.user_id is not None:
-        await bot.send_option([MessageSegment.at(ev.user_id), MessageSegment.text(f"{TITLE}{msg}")], sign_buttons())
-        return
     await bot.send_option(f"{TITLE}{msg}", sign_buttons())
 
 
