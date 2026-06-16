@@ -5,7 +5,7 @@ import hashlib
 from datetime import datetime
 from dataclasses import dataclass
 
-from gsuid_core.bot import Bot
+from gsuid_core.bot import Bot, at_sender_pos
 from gsuid_core.config import core_config
 from gsuid_core.logger import logger
 from gsuid_core.models import Event
@@ -335,10 +335,13 @@ async def _send_login_link(bot: Bot, ev: Event, url: str) -> None:
     if forward and not private_onebot:
         await bot.send(MessageSegment.node(lines))
     else:
-        await bot.send(
-            [MessageSegment.text("\n".join(lines)), MessageSegment.buttons(login_link_buttons(url))],
-            at_sender=at_sender,
-        )
+        message = [MessageSegment.text("\n".join(lines))]
+        if at_sender and ev.user_id is not None:
+            if at_sender_pos == "消息最后":
+                message.append(MessageSegment.at(ev.user_id))
+            else:
+                message.insert(0, MessageSegment.at(ev.user_id))
+        await bot.send_option(message, login_link_buttons(url))
 
 
 async def request_login(bot: Bot, ev: Event) -> None:

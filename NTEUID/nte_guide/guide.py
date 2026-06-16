@@ -37,7 +37,15 @@ async def get_guide(bot: Bot, ev: Event, char_name: str) -> None:
     # 单作者单图时省掉「攻略作者：」文字头，直接发图。
     final = imgs[1] if "all" not in config and len(imgs) == 2 else imgs
     parts = final if isinstance(final, list) else [final]
-    await bot.send([*parts, MessageSegment.buttons(guide_buttons(real_name))])
+    message = [
+        MessageSegment.image(part)
+        if isinstance(part, str) and (part.startswith("base64://") or part.startswith("http"))
+        else MessageSegment.text(part)
+        if isinstance(part, str)
+        else part
+        for part in parts
+    ]
+    await bot.send_option(message, guide_buttons(real_name))
 
 
 async def _collect(guide_dir: Path, pattern: re.Pattern, author: str) -> list[Any]:
