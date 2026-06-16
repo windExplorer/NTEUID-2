@@ -9,12 +9,13 @@ from ..utils.at import AtTarget, resolve_at_target
 from .role_card import draw_role_card_img
 from .level_card import draw_level_img
 from ..utils.msgs import TITLE, RoleMsg, CharacterMsg, send_nte_notify
+from .panel_image import cache_original_image
 from .explore_card import draw_explore_img
 from .refresh_card import draw_refresh_img
 from .vehicle_card import draw_vehicle_img
 from .realtime_card import draw_realtime_img
 from ..utils.session import SessionCall
-from .character_card import draw_character_card_img
+from .character_card import draw_character_card_with_original
 from .character_sort import diff_characters, sort_characters
 from ..utils.database import NTEUser, NTEGroupMember
 from .character_cache import (
@@ -29,7 +30,6 @@ from ..utils.msgs.buttons import (
     login_buttons,
     relogin_buttons,
     role_home_buttons,
-    char_detail_buttons,
     refresh_changed_buttons,
 )
 from ..utils.name_convert import CHARS
@@ -115,8 +115,11 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
             )
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
-    img = await draw_character_card_img(char, user.role_name, user.uid, await get_event_avatar(ev))
-    await bot.send_option(MessageSegment.image(img), char_detail_buttons(std_char_name))
+    img, original_img_path = await draw_character_card_with_original(
+        char, user.role_name, user.uid, await get_event_avatar(ev)
+    )
+    message_ids = await bot.send(MessageSegment.image(img), wait_recall=True)
+    cache_original_image(message_ids, original_img_path)
 
 
 async def run_character_level(bot: Bot, ev: Event) -> None:
