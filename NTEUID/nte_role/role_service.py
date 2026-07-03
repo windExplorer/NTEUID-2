@@ -73,7 +73,8 @@ async def _load_active_user(bot: Bot, ev: Event) -> tuple[NTEUser, AtTarget] | N
         if buttons is None:
             await send_nte_notify(bot, ev, msg)
         else:
-            await bot.send_option(f"{TITLE}{msg}", buttons, at_sender=bool(ev.group_id))
+            content = [MessageSegment.at(ev.user_id), f"{TITLE}{msg}"] if ev.group_id else f"{TITLE}{msg}"
+        await bot.send_option(content, buttons)
         return None
     return user, target
 
@@ -118,8 +119,8 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
     img, original_img_path = await draw_character_card_with_original(
         char, user.role_name, user.uid, await get_event_avatar(ev)
     )
-    message_ids = await bot.send(MessageSegment.image(img), wait_recall=True)
-    cache_original_image(message_ids, original_img_path)
+    message_ids = await bot.send(MessageSegment.image(img))
+    cache_original_image(None, original_img_path)
 
 
 async def run_character_level(bot: Bot, ev: Event) -> None:

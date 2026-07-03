@@ -132,8 +132,8 @@ async def run_strongest_panel(bot: Bot, ev: Event, char_name: str, *, bot_scope:
     user_id, role_name = (await NTEUser.identity_by_uids([top_uid]))[top_uid]
     avatar = await fetch_avatar(ev, user_id)
     img, original_img_path = await draw_character_card_with_original(char, role_name, top_uid, avatar)
-    message_ids = await bot.send(MessageSegment.image(img), wait_recall=True)
-    cache_original_image(message_ids, original_img_path)
+    message_ids = await bot.send(MessageSegment.image(img))
+    cache_original_image(None, original_img_path)
 
 
 async def run_strongest_board(bot: Bot, ev: Event, *, bot_scope: bool) -> None:
