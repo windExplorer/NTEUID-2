@@ -48,6 +48,7 @@
 
 - [Wuyi 无疑](https://github.com/KimigaiiWuyi)
 - [gsuid_core](https://github.com/Genshin-bots/gsuid_core)
+- [NteMeta（资源仓库）](https://cnb.cool/tyql688/NteMeta)
 
 ## 丨攻略组
 
