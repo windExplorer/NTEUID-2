@@ -16,3 +16,6 @@ gsuid_core/
 
 # 本地出图生成产物
 test_result/
+
+# 第三方克隆仓库（yihuan-cat-kiosk-stats，不纳入版本控制）
+yihuan-cat-kiosk-stats/
