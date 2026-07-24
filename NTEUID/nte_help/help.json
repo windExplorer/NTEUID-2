@@ -189,9 +189,9 @@
                 "need_admin": false
             },
             {
-                "name": "评分排名2",
+                "name": "角色排名2",
                 "desc": "本群账号按该角色工坊评分降序排行",
-                "eg": "娜娜莉评分排名2",
+                "eg": "娜娜莉排名2",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false

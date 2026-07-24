@@ -79,7 +79,7 @@ def build_level_entries(characters: list[CharacterDetail], *, drive: bool = Fals
     """
     score_fn = None
     if drive:
-        from .extra.drive.score_drive import score_character_drive
+        from ..extra.drive.score_drive import score_character_drive
 
         score_fn = score_character_drive
     entries: list[LevelEntry] = []

@@ -168,7 +168,7 @@ async def nte_role_rank(bot: Bot, ev: Event):
 
 # ── 异环工坊(drive) 评分指令：与上面同名指令孪生，但强制走 drive 后端与八档评级 ──
 sv_nte_role_drive_detail = SV("nte角色详情2")
-sv_nte_role_drive_rank = SV("nte角色评分排名2")
+sv_nte_role_drive_rank = SV("nte角色排名2")
 sv_nte_role_level2 = SV("nte角色练度2")
 
 # 角色最强面板2（最强面板2 字面量优先，避免角色名贪婪吞掉"最强"）
@@ -193,7 +193,7 @@ async def nte_role_drive_board(bot: Bot, ev: Event):
 
 
 @sv_nte_role_drive_rank.on_regex(
-    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(评分排名2|排名2|排行2)$", block=True
+    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(角色排名2|排名2|排行2)$", block=True
 )
 async def nte_role_drive_rank(bot: Bot, ev: Event):
     await run_character_rank(bot, ev, ev.regex_dict["char_name"], drive=True)
