@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from NTEUID.utils.sdk.tajiduo_model import (
+from ...utils.sdk.tajiduo_model import (
     CharQuality,
     CharacterDetail,
     CharacterSuitItem,
