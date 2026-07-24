@@ -25,6 +25,9 @@ exec_list.extend(
         "CREATE INDEX IF NOT EXISTS ix_ntechardata_char_id_score_uid ON ntechardata (char_id, score DESC, uid, grade)",
         # 排行展示按 (char_id, uid) 批量取 detail。
         "CREATE INDEX IF NOT EXISTS ix_ntechardata_char_id_uid ON ntechardata (char_id, uid)",
+        # 异环工坊 drive 评分新表（与 ntechardata 平行，原表不改动）：同样需按角色查分排行/最强
+        "CREATE INDEX IF NOT EXISTS ix_ntedrivechardata_char_id_score_uid ON ntedrivechardata (char_id, drive_score DESC, uid, drive_grade)",
+        "CREATE INDEX IF NOT EXISTS ix_ntedrivechardata_char_id_uid ON ntedrivechardata (char_id, uid)",
         # 群榜取本群参榜账号时同时过滤 bot_id，并按更新时间展示。
         "CREATE INDEX IF NOT EXISTS ix_ntegroupmember_group_bot_updated ON ntegroupmember (group_id, bot_id, updated_at DESC)",
         # 刷新面板登记群参榜账号时按 group_id + bot_id + uid 查旧行。
@@ -36,6 +39,7 @@ T_NTEUser = TypeVar("T_NTEUser", bound="NTEUser")
 T_NTESignRecord = TypeVar("T_NTESignRecord", bound="NTESignRecord")
 T_NTEGroupMember = TypeVar("T_NTEGroupMember", bound="NTEGroupMember")
 T_NTECharData = TypeVar("T_NTECharData", bound="NTECharData")
+T_NTEDriveCharData = TypeVar("T_NTEDriveCharData", bound="NTEDriveCharData")
 
 SIGN_KIND_APP = "app"
 SIGN_KIND_GAME = "game"
@@ -267,6 +271,7 @@ class NTEUser(User, table=True):
         ]
         if dropped_uids:
             await session.execute(delete(NTECharData).where(col(NTECharData.uid).in_(dropped_uids)))
+            await session.execute(delete(NTEDriveCharData).where(col(NTEDriveCharData.uid).in_(dropped_uids)))
             await session.execute(delete(NTEGroupMember).where(col(NTEGroupMember.uid).in_(dropped_uids)))
 
         for key, row in current.items():
@@ -975,6 +980,150 @@ class NTECharData(BaseIDModel, table=True):
         return result.rowcount
 
 
+class NTEDriveCharData(BaseIDModel, table=True):
+    """异环工坊 drive 模式评分表，与原 NTECharData **平行**：一行 = (uid, char_id)。
+
+    只存 drive 评分 / 评级（drive_score / drive_grade）；角色 detail 与评分模式无关，
+    出图时仍从 NTECharData 按 (uid, char_id) 取。这样不改动原表结构，零迁移风险。
+    """
+
+    __table_args__: dict[str, Any] = {"extend_existing": True}
+    uid: str = Field(default="", index=True, title="角色roleId")
+    char_id: str = Field(default="", index=True, title="可玩角色charId")
+    drive_score: int = Field(default=0, title="drive评分")
+    drive_grade: str = Field(default="", title="drive评级(空=不可评分)")
+    updated_at: datetime = Field(
+        default_factory=datetime.now,
+        sa_column_kwargs={"onupdate": datetime.now},
+        title="更新时间",
+    )
+
+    @classmethod
+    @with_session
+    async def replace_for_uid(
+        cls: type[T_NTEDriveCharData], session: AsyncSession, uid: str, rows: list[dict[str, Any]]
+    ) -> None:
+        """整账号覆盖（与 NTECharData.replace_for_uid 同语义）；rows 含 char_id/drive_score/drive_grade。"""
+        await session.execute(delete(cls).where(col(cls.uid) == uid))
+        for row in rows:
+            session.add(cls(uid=uid, **row))
+
+    @classmethod
+    @with_session
+    async def rank_for_char(
+        cls: type[T_NTEDriveCharData],
+        session: AsyncSession,
+        char_id: str,
+        uids: list[str] | None = None,
+        limit: int | None = None,
+    ) -> list[tuple[str, int, str]]:
+        """该角色按 drive_score 降序、uid 升序的排行（grade 空=不可评分不参与）。"""
+        stmt = (
+            select(col(cls.uid), col(cls.drive_score), col(cls.drive_grade))
+            .where(col(cls.char_id) == char_id, col(cls.drive_grade) != "")
+            .order_by(col(cls.drive_score).desc(), col(cls.uid).asc())
+        )
+        if uids is not None:
+            if not uids:
+                return []
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await session.execute(stmt)
+        return [(uid, score, grade) for uid, score, grade in result.all()]
+
+    @classmethod
+    @with_session
+    async def count_for_char(
+        cls: type[T_NTEDriveCharData], session: AsyncSession, char_id: str, uids: list[str] | None = None
+    ) -> int:
+        stmt = select(func.count()).select_from(cls).where(col(cls.char_id) == char_id, col(cls.drive_grade) != "")
+        if uids is not None:
+            if not uids:
+                return 0
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        return int((await session.execute(stmt)).scalar_one())
+
+    @classmethod
+    @with_session
+    async def best_for_char(
+        cls: type[T_NTEDriveCharData], session: AsyncSession, char_id: str, uids: list[str] | None = None
+    ) -> tuple[str, int, str] | None:
+        stmt = (
+            select(col(cls.uid), col(cls.drive_score), col(cls.drive_grade))
+            .where(col(cls.char_id) == char_id, col(cls.drive_grade) != "")
+            .order_by(col(cls.drive_score).desc(), col(cls.uid).asc())
+            .limit(1)
+        )
+        if uids is not None:
+            if not uids:
+                return None
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        row = (await session.execute(stmt)).first()
+        return None if row is None else (row[0], row[1], row[2])
+
+    @classmethod
+    @with_session
+    async def rank_position_for_char(
+        cls: type[T_NTEDriveCharData],
+        session: AsyncSession,
+        char_id: str,
+        uid: str,
+        score: int,
+        uids: list[str] | None = None,
+    ) -> int:
+        """该 uid 在某范围内的 drive 排名（1-based）。"""
+        stmt = (
+            select(func.count())
+            .select_from(cls)
+            .where(
+                col(cls.char_id) == char_id,
+                col(cls.drive_grade) != "",
+                or_(
+                    col(cls.drive_score) > score,
+                    and_(col(cls.drive_score) == score, col(cls.uid) < uid),
+                ),
+            )
+        )
+        if uids is not None:
+            if not uids:
+                return 1
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        return int((await session.execute(stmt)).scalar_one()) + 1
+
+    @classmethod
+    @with_session
+    async def strongest_per_char(
+        cls: type[T_NTEDriveCharData], session: AsyncSession, uids: list[str] | None = None
+    ) -> list[tuple[str, int, str]]:
+        """每个 char_id 取 drive_score 最高的账号，按分数降序返回 (char_id, uid, score, grade)。"""
+        max_score = func.max(col(cls.drive_score)).label("drive_score")
+        stmt = select(col(cls.char_id), col(cls.uid), max_score, col(cls.drive_grade)).where(
+            col(cls.drive_grade) != ""
+        )
+        if uids is not None:
+            if not uids:
+                return []
+            stmt = stmt.where(col(cls.uid).in_(uids))
+        stmt = stmt.group_by(col(cls.char_id))
+        rows = [
+            (char_id, uid, score, grade)
+            for char_id, uid, score, grade in (await session.execute(stmt)).all()
+        ]
+        return sorted(rows, key=lambda r: r[2], reverse=True)
+
+    @classmethod
+    @with_session
+    async def delete_by_uids(
+        cls: type[T_NTEDriveCharData], session: AsyncSession, uids: list[str]
+    ) -> int:
+        """登出时清掉这些账号的 drive 评分（与 NTECharData.delete_by_uids 同步）。"""
+        if not uids:
+            return 0
+        result = cast(CursorResult, await session.execute(delete(cls).where(col(cls.uid).in_(uids))))
+        return result.rowcount
+
+
 @site.register_admin
 class NTEUserAdmin(GsAdminModel):
     pk_name = "id"
@@ -1001,3 +1150,10 @@ class NTECharDataAdmin(GsAdminModel):
     pk_name = "id"
     page_schema = PageSchema(label="异环个人数据", icon="fa fa-ranking-star")  # type: ignore
     model = NTECharData
+
+
+@site.register_admin
+class NTEDriveCharDataAdmin(GsAdminModel):
+    pk_name = "id"
+    page_schema = PageSchema(label="异环drive个人数据", icon="fa fa-ranking-star")  # type: ignore
+    model = NTEDriveCharData

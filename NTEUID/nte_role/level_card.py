@@ -23,6 +23,7 @@ from ..utils.image import (
 from ..utils.resource.cdn import get_avatar_img, get_weapon_img, get_char_element_img
 from ..utils.fonts.nte_fonts import nte_font_origin
 from ..utils.sdk.tajiduo_model import CharElement, CharQuality, CharacterDetail
+from .character_card import grade_color, grade_icon
 
 CHAR_TEX = Path(__file__).parent / "texture2d" / "character"
 LEVEL_TEX = Path(__file__).parent / "texture2d" / "level"
@@ -72,11 +73,18 @@ class LevelEntry:
     grade: str
 
 
-def build_level_entries(characters: list[CharacterDetail]) -> list[LevelEntry]:
-    """每角色解出练度字段，按「装备评分降序 → 不可评分置后 → 品级>等级>觉醒」排序。"""
+def build_level_entries(characters: list[CharacterDetail], *, drive: bool = False) -> list[LevelEntry]:
+    """每角色解出练度字段，按「装备评分降序 → 不可评分置后 → 品级>等级>觉醒」排序。
+    drive=True 时用异环工坊独立后端算评分/评级。
+    """
+    score_fn = None
+    if drive:
+        from .extra.drive.score_drive import score_character_drive
+
+        score_fn = score_character_drive
     entries: list[LevelEntry] = []
     for char in characters:
-        result = score_character(char)
+        result = score_fn(char) if score_fn is not None else score_character(char)
         score = result.score if result is not None else None
         grade = result.grade if result is not None else ""
         skills = tuple(skill.level for skill in char.skills if skill.type == "Proactive")[:4]
@@ -109,8 +117,8 @@ def build_level_entries(characters: list[CharacterDetail]) -> list[LevelEntry]:
 
 
 @lru_cache(maxsize=4)
-def _grade_icon(grade: str) -> Image.Image | None:
-    return open_texture(CHAR_TEX / f"rank_{grade}.png", (54, 54)) if grade in GRADE_COLOR else None
+def _grade_icon(grade: str, *, drive: bool = False) -> Image.Image | None:
+    return grade_icon(grade, (54, 54), drive=drive)
 
 
 def _fit(draw: ImageDraw.ImageDraw, text: str, width: int, font) -> str:
@@ -159,12 +167,14 @@ def _stretch_bar(name: str, height: int, cap: int) -> Image.Image:
 
 
 async def _draw_banner(
-    canvas: Image.Image, draw: ImageDraw.ImageDraw, ev: Event, role_name: str, uid: str, total: int
+    canvas: Image.Image, draw: ImageDraw.ImageDraw, ev: Event, role_name: str, uid: str, total: int, *, drive: bool = False
 ) -> None:
     canvas.alpha_composite(_title_banner(), (0, 0))
     canvas.alpha_composite(_vgrad(WIDTH, 176, (8, 6, 20), 0, 220), (0, BANNER_H - 176))
 
-    draw.text((48, 96), "面板练度统计", font=nte_font_origin(62), fill=COLOR_WHITE, anchor="lm")
+    draw.text(
+        (48, 96), f"面板练度统计{' · 异环工坊' if drive else ''}", font=nte_font_origin(62), fill=COLOR_WHITE, anchor="lm"
+    )
     draw.line((52, 140, 372, 140), fill=MAGENTA, width=6)
     draw.line((52, 140, 252, 140), fill=CYAN, width=6)
 
@@ -204,6 +214,8 @@ async def _draw_row(
     avatar: Image.Image,
     element: Image.Image | None,
     row_img: Image.Image,
+    *,
+    drive: bool = False,
 ) -> None:
     canvas.alpha_composite(row_img, (ROW_X0, y))
     mid = y + ROW_H // 2
@@ -244,7 +256,7 @@ async def _draw_row(
     else:
         draw.text((1270, mid), "—", font=nte_font_origin(32), fill=SUBTEXT, anchor="lm")
 
-    grade_icon = _grade_icon(entry.grade)
+    grade_icon = _grade_icon(entry.grade, drive=drive)
     if grade_icon is not None:
         canvas.alpha_composite(grade_icon, (1584, mid - 27))
     if entry.score is None:
@@ -254,14 +266,14 @@ async def _draw_row(
             (1740, mid - 10),
             str(entry.score),
             font=nte_font_origin(50),
-            fill=GRADE_COLOR.get(entry.grade, COLOR_WHITE),
+            fill=grade_color(entry.grade, drive=drive),
             anchor="rm",
         )
         draw.text((1740, mid + 32), f"· {entry.suit_pieces}件", font=nte_font_origin(24), fill=SUBTEXT, anchor="rm")
 
 
-async def draw_level_img(ev: Event, role_name: str, uid: str, characters: list[CharacterDetail]) -> bytes:
-    entries = build_level_entries(characters)
+async def draw_level_img(ev: Event, role_name: str, uid: str, characters: list[CharacterDetail], *, drive: bool = False) -> bytes:
+    entries = build_level_entries(characters, drive=drive)
     avatars = [await get_avatar_img(entry.char_id) for entry in entries]
     # 异环仅 6 种元素，按 element 去重，避免每行重复 open 同一图标
     element_imgs: dict[str, Image.Image | None] = {}
@@ -274,7 +286,7 @@ async def draw_level_img(ev: Event, role_name: str, uid: str, characters: list[C
     canvas.alpha_composite(Image.new("RGBA", (WIDTH, height), (10, 9, 24, 170)))
     draw = ImageDraw.Draw(canvas)
 
-    await _draw_banner(canvas, draw, ev, role_name, uid, len(entries))
+    await _draw_banner(canvas, draw, ev, role_name, uid, len(entries), drive=drive)
     _draw_colhead(canvas, draw)
 
     y = BANNER_H + COLHEAD_H
@@ -283,7 +295,15 @@ async def draw_level_img(ev: Event, role_name: str, uid: str, characters: list[C
     for index, (entry, avatar) in enumerate(zip(entries, avatars)):
         element = element_imgs[entry.element.value]
         await _draw_row(
-            canvas, draw, y, index + 1, entry, avatar if avatar is not None else placeholder, element, row_img
+            canvas,
+            draw,
+            y,
+            index + 1,
+            entry,
+            avatar if avatar is not None else placeholder,
+            element,
+            row_img,
+            drive=drive,
         )
         y += ROW_H + ROW_GAP
 

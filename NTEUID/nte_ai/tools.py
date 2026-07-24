@@ -7,7 +7,7 @@ from gsuid_core.segment import MessageSegment
 from gsuid_core.ai_core.register import ai_tools
 
 from ..utils.msgs import TITLE, LoginMsg, send_nte_notify
-from ..utils.database import NTEUser, NTECharData, NTEGroupMember
+from ..utils.database import NTEUser, NTECharData, NTEDriveCharData, NTEGroupMember
 from ..nte_guide.guide import get_guide
 from ..utils.constants import GAME_ID_YIHUAN
 from ..nte_help.get_help import get_help
@@ -283,6 +283,7 @@ async def nte_logout(bot: Bot, ev: Event, all_accounts: bool = False) -> str:
         if not deleted:
             return "当前没有可退出的异环账号，用户可能尚未登录。"
         await NTECharData.delete_by_uids(uids)
+        await NTEDriveCharData.delete_by_uids(uids)
         await NTEGroupMember.delete_by_uids(ev.bot_id, uids)
         logger.info(f"[NTE登出] AI 触发清理全部角色数据 uids={uids}")
         await send_nte_notify(bot, ev, LoginMsg.LOGOUT_ALL_DONE)
@@ -303,6 +304,7 @@ async def nte_logout(bot: Bot, ev: Event, all_accounts: bool = False) -> str:
         return "退出登录失败，请稍后重试。"
 
     await NTECharData.delete_by_uids(uids)
+    await NTEDriveCharData.delete_by_uids(uids)
     await NTEGroupMember.delete_by_uids(ev.bot_id, uids)
     logger.info(f"[NTE登出] AI 触发清理角色数据 uids={uids}")
     await send_nte_notify(bot, ev, LoginMsg.LOGOUT_DONE)

@@ -161,6 +161,41 @@ def _grade_img(
     return img
 
 
+# 原版(nteuid) 三档配色，供榜单/练度卡跟随模式着色（与 _GRADE_ICON_SETS 对应）
+GRADE_COLOR_NTEUID: dict[str, tuple[int, int, int]] = {
+    "S": (255, 208, 96),
+    "A": (170, 165, 240),
+    "B": (176, 182, 214),
+}
+
+# 异环工坊(drive) 八档配色（D/C/B/A/S/SS/SSS/ACE）
+GRADE_COLOR_DRIVE: dict[str, tuple[int, int, int]] = {
+    "ACE": (255, 80, 96),
+    "SSS": (255, 120, 200),
+    "SS": (255, 184, 120),
+    "S": (255, 208, 96),
+    "A": (170, 165, 240),
+    "B": (118, 178, 248),
+    "C": (120, 214, 162),
+    "D": (176, 182, 214),
+}
+
+
+def grade_color(grade: str, *, drive: bool = False) -> tuple[int, int, int]:
+    """按模式返回评级文字配色；未知档回退白色。"""
+    return (GRADE_COLOR_DRIVE if drive else GRADE_COLOR_NTEUID).get(grade, COLOR_WHITE)
+
+
+def grade_icon(
+    grade: str | None, size: int | tuple[int, int], *, drive: bool = False
+) -> Image.Image | None:
+    """按模式返回评级图标；drive 用 LuckiestGuy 八档集(缺档回退 nteuid 集)，否则用原版集。
+
+    与 _grade_img 一致，多字档(SS/SSS/ACE)按 contain 等比缩放，绝不压扁。
+    """
+    return _grade_img(grade, size, "异环工坊" if drive else "nteuid")
+
+
 async def _draw_attrs(
     canvas: Image.Image,
     draw: ImageDraw.ImageDraw,
@@ -229,14 +264,15 @@ def _draw_score(
     draw: ImageDraw.ImageDraw,
     xy: tuple[int, int],
     score: CharacterScore | None,
+    score_mode: str | None = None,
 ) -> None:
     x, y = xy
     canvas.alpha_composite(open_texture(TEX / "score_bg.png"), (x, y))
     canvas.alpha_composite(open_texture(TEX / "score_fg.png"), (x, y))
-    # 顶部总评图标同样跟随当前评分模式：drive(异环工坊) 用 LuckiestGuy(ranks/)，其余用原版 texture2d
+    # 顶部总评图标跟随当前评分模式：drive(异环工坊) 用 LuckiestGuy(ranks/)，其余用原版 texture2d
     grade = score.grade if score is not None else None
     is_multi = grade in ("SS", "SSS", "ACE")  # 多字档为宽画布图标
-    rank = _grade_img(grade, (200, 92) if is_multi else 92)
+    rank = _grade_img(grade, (200, 92) if is_multi else 92, score_mode)
     if rank is not None:
         if is_multi:
             # 宽图标：等比缩放后居中放在原 92 框的中心点，避免压扁且不重叠
@@ -330,6 +366,7 @@ async def _draw_drive(
     item: CharacterSuitItem,
     score: CharacterScore | None,
     item_score: EquipmentScore | None,
+    score_mode: str | None = None,
 ) -> None:
     x, y = xy
     canvas.alpha_composite(open_texture(TEX / "ad_bg.png"), (x, y))
@@ -339,7 +376,7 @@ async def _draw_drive(
     # 底部盘区块图标跟随当前评分模式（图标集由 _GRADE_ICON_SETS 注册表决定）
     grade = item_score.grade if item_score is not None else None
     is_multi = grade in ("SS", "SSS", "ACE")  # 多字档为宽画布图标
-    rank = _grade_img(grade, (116, 58) if is_multi else 58)
+    rank = _grade_img(grade, (116, 58) if is_multi else 58, score_mode)
     if rank is not None:
         if is_multi:
             # 宽图标：等比缩放后居中放在 58 框的中心点（整体右移 20 以贴合盘块右侧）
@@ -505,10 +542,16 @@ async def _draw_character_art(canvas: Image.Image, character_id: str) -> Path | 
 
 
 async def draw_character_card_with_original(
-    character: CharacterDetail, role_name: str, uid: str, avatar: Image.Image
+    character: CharacterDetail, role_name: str, uid: str, avatar: Image.Image, *, score_mode: str | None = None
 ) -> tuple[bytes, Path | None]:
     suit_items = [*character.suit.core, *character.suit.pie] if character.suit.id else []
-    score = score_character(character)
+    if score_mode == "异环工坊":
+        # 异环工坊(drive) 模式：强制走独立 drive 后端与八档评级图标
+        from ..extra.drive.score_drive import score_character_drive
+
+        score = score_character_drive(character)
+    else:
+        score = score_character(character)
     equipment_scores: tuple[EquipmentScore | None, ...] = (None,) * len(suit_items)
     if score is not None:
         equipment_scores = score.equipment
@@ -564,7 +607,7 @@ async def draw_character_card_with_original(
     cursor = BODY_TOP + 880 + GAP
     if gear_h:
         if suit_items:
-            _draw_score(canvas, draw, (18, cursor), score)
+            _draw_score(canvas, draw, (18, cursor), score, score_mode)
         if character.fork.id:
             await _draw_weapon(canvas, draw, (406 if suit_items else 18, cursor), character.fork)
         cursor += gear_h + GAP
@@ -576,6 +619,7 @@ async def draw_character_card_with_original(
             item,
             score,
             equipment_scores[index],
+            score_mode,
         )
 
     if damage is not None:

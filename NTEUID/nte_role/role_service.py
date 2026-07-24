@@ -93,7 +93,7 @@ async def run_role_home(bot: Bot, ev: Event) -> None:
         await bot.send_option(MessageSegment.image(img), role_home_buttons())
 
 
-async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
+async def run_character_detail(bot: Bot, ev: Event, char_name: str, *, drive: bool = False) -> None:
     if not char_name:
         return await send_nte_notify(bot, ev, CharacterMsg.usage_detail())
 
@@ -117,18 +117,18 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str) -> None:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
     img, original_img_path = await draw_character_card_with_original(
-        char, user.role_name, user.uid, await get_event_avatar(ev)
+        char, user.role_name, user.uid, await get_event_avatar(ev), score_mode="异环工坊" if drive else None
     )
     message_ids = await bot.send(MessageSegment.image(img))
     cache_original_image(None, original_img_path)
 
 
-async def run_character_level(bot: Bot, ev: Event) -> None:
+async def run_character_level(bot: Bot, ev: Event, *, drive: bool = False) -> None:
     loaded = await _load_cached_characters(bot, ev)
     if loaded is None:
         return
     user, characters = loaded
-    await bot.send(await draw_level_img(ev, user.role_name, user.uid, characters))
+    await bot.send(await draw_level_img(ev, user.role_name, user.uid, characters, drive=drive))
 
 
 async def run_refresh_role_panel(bot: Bot, ev: Event) -> None:

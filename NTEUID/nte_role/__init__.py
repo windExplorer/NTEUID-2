@@ -166,6 +166,44 @@ async def nte_role_rank(bot: Bot, ev: Event):
         await run_character_rank(bot, ev, d["char_name"])
 
 
+# ── 异环工坊(drive) 评分指令：与上面同名指令孪生，但强制走 drive 后端与八档评级 ──
+sv_nte_role_drive_detail = SV("nte角色详情2")
+sv_nte_role_drive_rank = SV("nte角色评分排名2")
+sv_nte_role_level2 = SV("nte角色练度2")
+
+# 角色最强面板2（最强面板2 字面量优先，避免角色名贪婪吞掉"最强"）
+@sv_nte_role_drive_detail.on_regex(
+    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)最强面板2$", block=True
+)
+async def nte_role_drive_strongest_panel(bot: Bot, ev: Event):
+    await run_strongest_panel(bot, ev, ev.regex_dict["char_name"], bot_scope=False, drive=True)
+
+
+@sv_nte_role_drive_detail.on_regex(
+    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(面板2|信息2|详情2|面包2)$", block=True
+)
+async def nte_role_drive_detail(bot: Bot, ev: Event):
+    await run_character_detail(bot, ev, ev.regex_dict["char_name"], drive=True)
+
+
+# 最强排行2（字面量放前，避免"排行2"被角色名贪婪吞掉"最强"）
+@sv_nte_role_drive_rank.on_regex(r"^最强排行2$", block=True)
+async def nte_role_drive_board(bot: Bot, ev: Event):
+    await run_strongest_board(bot, ev, bot_scope=False, drive=True)
+
+
+@sv_nte_role_drive_rank.on_regex(
+    rf"^(?P<char_name>{COMMAND_NAME_PATTERN}?)(评分排名2|排名2|排行2)$", block=True
+)
+async def nte_role_drive_rank(bot: Bot, ev: Event):
+    await run_character_rank(bot, ev, ev.regex_dict["char_name"], drive=True)
+
+
+@sv_nte_role_level2.on_fullmatch(("练度2", "角色练度2", "练度统计2"), block=True)
+async def nte_role_level2(bot: Bot, ev: Event):
+    await run_character_level(bot, ev, drive=True)
+
+
 @sv_nte_achievement.on_fullmatch(("成就进度", "成就"))
 async def nte_achievement(bot: Bot, ev: Event):
     await run_achievement(bot, ev)

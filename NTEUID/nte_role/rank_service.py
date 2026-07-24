@@ -11,7 +11,7 @@ from ..utils.msgs import RankMsg, CharacterMsg, send_nte_notify
 from .panel_image import cache_original_image
 from ..utils.avatar import fetch_avatar
 from .character_card import draw_character_card_with_original
-from ..utils.database import NTEUser, NTECharData, NTEGroupMember
+from ..utils.database import NTEUser, NTECharData, NTEDriveCharData, NTEGroupMember
 from ..utils.name_convert import CHARS
 from .strongest_board_card import BoardEntry, draw_strongest_board_img
 from ..utils.sdk.tajiduo_model import CharacterDetail
@@ -28,6 +28,7 @@ async def _send_rank(
     scope_label: str,
     uids: list[str] | None,
     group_identity: dict[str, tuple[str, str]] | None = None,
+    drive: bool = False,
 ) -> None:
     """uids 给定 = 本群排名；为 None = bot排名。
     身份查询全部按集合大小封顶：本群直接用群表身份；全服只查"自己的 uid"(定位自己) +
@@ -38,10 +39,11 @@ async def _send_rank(
     if not std_char_name or not char_id:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
-    total = await NTECharData.count_for_char(char_id, uids)
+    score_table = NTEDriveCharData if drive else NTECharData
+    total = await score_table.count_for_char(char_id, uids)
     if total == 0:
         return await send_nte_notify(bot, ev, RankMsg.NO_SCORE)
-    show = await NTECharData.rank_for_char(char_id, uids, limit=MAX_ENTRIES)
+    show = await score_table.rank_for_char(char_id, uids, limit=MAX_ENTRIES)
 
     if group_identity is not None:
         self_uids = {uid for uid, (owner, _) in group_identity.items() if owner == ev.user_id}
@@ -51,9 +53,9 @@ async def _send_rank(
     need = [uid for uid, _, _ in show]
     overflow: tuple[int, tuple[str, int, str]] | None = None
     if self_uids and {uid for uid, _, _ in show}.isdisjoint(self_uids):
-        self_row = await NTECharData.best_for_char(char_id, list(self_uids))
+        self_row = await score_table.best_for_char(char_id, list(self_uids))
         if self_row is not None:
-            self_rank = await NTECharData.rank_position_for_char(char_id, self_row[0], self_row[1], uids)
+            self_rank = await score_table.rank_position_for_char(char_id, self_row[0], self_row[1], uids)
             if self_rank > MAX_ENTRIES:
                 overflow = (self_rank, self_row)
     if overflow is not None:
@@ -74,11 +76,11 @@ async def _send_rank(
 
     shown = [build(row) for row in show]
     self_overflow = (overflow[0], build(overflow[1])) if overflow is not None else None
-    await bot.send(await draw_rank_img(ev, std_char_name, char_id, shown, total, scope_label, self_overflow))
+    await bot.send(await draw_rank_img(ev, std_char_name, char_id, shown, total, scope_label, self_overflow, drive=drive))
 
 
-async def run_character_rank(bot: Bot, ev: Event, char_name: str) -> None:
-    """本群评分排名：先取本群登记过的号，再按号查分。"""
+async def run_character_rank(bot: Bot, ev: Event, char_name: str, *, drive: bool = False) -> None:
+    """本群评分排名：先取本群登记过的号，再按号查分。drive=True 用异环工坊评分。"""
     if not char_name:
         return await send_nte_notify(bot, ev, RankMsg.usage())
     if not ev.group_id:
@@ -87,14 +89,16 @@ async def run_character_rank(bot: Bot, ev: Event, char_name: str) -> None:
     if not members:
         return await send_nte_notify(bot, ev, RankMsg.NO_MEMBER)
     identity = {m.uid: (m.user_id, m.role_name) for m in members}
-    await _send_rank(bot, ev, char_name, scope_label="本群", uids=list(identity), group_identity=identity)
+    await _send_rank(
+        bot, ev, char_name, scope_label="本群", uids=list(identity), group_identity=identity, drive=drive
+    )
 
 
-async def run_bot_rank(bot: Bot, ev: Event, char_name: str) -> None:
-    """bot评分排名：直接扫全表，不按群。"""
+async def run_bot_rank(bot: Bot, ev: Event, char_name: str, *, drive: bool = False) -> None:
+    """bot评分排名：直接扫全表，不按群。drive=True 用异环工坊评分。"""
     if not char_name:
         return await send_nte_notify(bot, ev, RankMsg.usage_bot())
-    await _send_rank(bot, ev, char_name, scope_label="bot", uids=None)
+    await _send_rank(bot, ev, char_name, scope_label="bot", uids=None, drive=drive)
 
 
 async def _scope_member_uids(bot: Bot, ev: Event, bot_scope: bool) -> tuple[bool, list[str] | None]:
@@ -113,8 +117,8 @@ async def _scope_member_uids(bot: Bot, ev: Event, bot_scope: bool) -> tuple[bool
     return True, [m.uid for m in members]
 
 
-async def run_strongest_panel(bot: Bot, ev: Event, char_name: str, *, bot_scope: bool) -> None:
-    """某角色评分最强账号的面板：bot_scope=全服第一，否则本群第一。头像走 fetch_avatar(同 bot排行)，持有账号本人。"""
+async def run_strongest_panel(bot: Bot, ev: Event, char_name: str, *, bot_scope: bool, drive: bool = False) -> None:
+    """某角色评分最强账号的面板：bot_scope=全服第一，否则本群第一。drive=True 用异环工坊评分。头像走 fetch_avatar，持有账号本人。"""
     std_char_name = CHARS.name_of(char_name)
     char_id = CHARS.id_of(std_char_name) if std_char_name else None
     if not std_char_name or not char_id:
@@ -123,7 +127,8 @@ async def run_strongest_panel(bot: Bot, ev: Event, char_name: str, *, bot_scope:
     ok, uids = await _scope_member_uids(bot, ev, bot_scope)
     if not ok:
         return
-    top = await NTECharData.best_for_char(char_id, uids)
+    score_table = NTEDriveCharData if drive else NTECharData
+    top = await score_table.best_for_char(char_id, uids)
     if top is None:
         return await send_nte_notify(bot, ev, RankMsg.NO_SCORE)
 
@@ -131,17 +136,20 @@ async def run_strongest_panel(bot: Bot, ev: Event, char_name: str, *, bot_scope:
     char = CharacterDetail.model_validate(json.loads((await NTECharData.details_for([top_uid], char_id))[top_uid]))
     user_id, role_name = (await NTEUser.identity_by_uids([top_uid]))[top_uid]
     avatar = await fetch_avatar(ev, user_id)
-    img, original_img_path = await draw_character_card_with_original(char, role_name, top_uid, avatar)
+    img, original_img_path = await draw_character_card_with_original(
+        char, role_name, top_uid, avatar, score_mode="异环工坊" if drive else None
+    )
     message_ids = await bot.send(MessageSegment.image(img))
     cache_original_image(None, original_img_path)
 
 
-async def run_strongest_board(bot: Bot, ev: Event, *, bot_scope: bool) -> None:
-    """最强排行：每个角色取评分最强的号，按分降序。bot_scope=全服，否则本群。"""
+async def run_strongest_board(bot: Bot, ev: Event, *, bot_scope: bool, drive: bool = False) -> None:
+    """最强排行：每个角色取评分最强的号，按分降序。bot_scope=全服，否则本群。drive=True 用异环工坊评分。"""
     ok, uids = await _scope_member_uids(bot, ev, bot_scope)
     if not ok:
         return
-    rows = await NTECharData.strongest_per_char(uids)
+    score_table = NTEDriveCharData if drive else NTECharData
+    rows = await score_table.strongest_per_char(uids)
     if not rows:
         return await send_nte_notify(bot, ev, RankMsg.NO_SCORE)
 
@@ -166,4 +174,4 @@ async def run_strongest_board(bot: Bot, ev: Event, *, bot_scope: bool) -> None:
                 grade=grade,
             )
         )
-    await bot.send(await draw_strongest_board_img(entries, "BOT" if bot_scope else "本群"))
+    await bot.send(await draw_strongest_board_img(entries, "BOT" if bot_scope else "本群", drive=drive))

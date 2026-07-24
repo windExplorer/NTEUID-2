@@ -9,7 +9,7 @@ from . import login_router
 from ..utils.msgs import LoginMsg, CommonMsg, send_nte_notify
 from .bind_service import view_bindings, switch_binding, get_laohu_tokens, get_access_tokens
 from .login_service import request_login, login_by_laohu_token, login_by_access_token, refresh_all_user_tokens
-from ..utils.database import NTEUser, NTECharData, NTEGroupMember
+from ..utils.database import NTEUser, NTECharData, NTEDriveCharData, NTEGroupMember
 from ..utils.game_registry import PRIMARY_GAME_ID
 
 _ = login_router  # 纯副作用 import：FastAPI 路由在模块加载时注册
@@ -60,6 +60,7 @@ async def nte_logout_cmd(bot: Bot, ev: Event):
         return await send_nte_notify(bot, ev, LoginMsg.NOT_LOGGED_IN)
 
     await NTECharData.delete_by_uids(uids)
+    await NTEDriveCharData.delete_by_uids(uids)
     await NTEGroupMember.delete_by_uids(ev.bot_id, uids)
     logger.info(f"[NTE登出] 清理角色数据 uids={uids}")
 
@@ -76,6 +77,7 @@ async def nte_logout_all_cmd(bot: Bot, ev: Event):
         return await send_nte_notify(bot, ev, LoginMsg.NOT_LOGGED_IN)
 
     await NTECharData.delete_by_uids(uids)
+    await NTEDriveCharData.delete_by_uids(uids)
     await NTEGroupMember.delete_by_uids(ev.bot_id, uids)
     logger.info(f"[NTE登出] 清理全部角色数据 uids={uids}")
 

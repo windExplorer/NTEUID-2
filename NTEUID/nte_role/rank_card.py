@@ -13,6 +13,7 @@ from ..utils.image import COLOR_WHITE, SmoothDrawer, add_footer, get_nte_bg, ope
 from ..utils.avatar import fetch_avatar
 from ..utils.resource.cdn import get_char_detail_img, get_char_suit_detail_img
 from ..utils.fonts.nte_fonts import nte_font_origin
+from .character_card import grade_color, grade_icon
 
 CHAR_TEX = Path(__file__).parent / "texture2d" / "character"
 RANK_TEX = Path(__file__).parent / "texture2d" / "rank"
@@ -97,6 +98,8 @@ async def _draw_row(
     entry: RankEntry,
     avatar: Image.Image,
     is_self: bool,
+    *,
+    drive: bool = False,
 ) -> None:
     canvas.alpha_composite(_tier_frame(rank), (PANEL_X0, y))
     mid = y + ROW_H // 2
@@ -125,22 +128,23 @@ async def _draw_row(
         canvas.alpha_composite(icon.convert("RGBA").resize((78, 78), Image.Resampling.LANCZOS), (540, mid - 39))
     text = _fit(draw, f"{entry.suit_name} · {entry.suit_pieces}件", 380, nte_font_origin(28))
     draw.text((632, mid), text, font=nte_font_origin(28), fill=COLOR_WHITE, anchor="lm")
-    # 评级图标 + 分数（按评级配色）
+    # 评级图标 + 分数（按评级配色，drive 模式用异环工坊八档图标集）
     grade = entry.grade
-    if grade in GRADE_COLOR:
-        canvas.alpha_composite(open_texture(CHAR_TEX / f"rank_{grade}.png", (76, 76)), (1014, mid - 38))
+    icon = grade_icon(grade, (92, 76), drive=drive)
+    if icon is not None:
+        canvas.alpha_composite(icon, (1014 + (92 - icon.width) // 2, mid - 38 + (76 - icon.height) // 2))
     draw.text(
         (1196, mid - 16),
         str(entry.score),
         font=nte_font_origin(52),
-        fill=GRADE_COLOR.get(grade, COLOR_WHITE),
+        fill=grade_color(grade, drive=drive),
         anchor="rm",
     )
     draw.text((1196, mid + 33), "分", font=nte_font_origin(22), fill=SUBTEXT, anchor="rm")
 
 
 async def _draw_header(
-    canvas: Image.Image, draw: ImageDraw.ImageDraw, char_name: str, char_id: str, total: int, scope_label: str
+    canvas: Image.Image, draw: ImageDraw.ImageDraw, char_name: str, char_id: str, total: int, scope_label: str, *, drive: bool = False
 ) -> None:
     # 标题压暗罩：顶部留出霓虹天际线，越往下越暗
     scrim = Image.new("RGBA", (1, HEADER_H))
@@ -162,7 +166,7 @@ async def _draw_header(
     draw.text((52, 304), f"「{char_name}」评分排名", font=nte_font_origin(64), fill=COLOR_WHITE, anchor="lm")
     SmoothDrawer().rounded_rectangle((54, 346, 318, 353), 3, fill=(251, 221, 188, 240), target=canvas)
     draw.text(
-        (56, 380), f"{scope_label} {total} 个号上榜 · 按评分降序", font=nte_font_origin(28), fill=SUBTEXT, anchor="lm"
+        (56, 380), f"{scope_label}{' · 异环工坊' if drive else ''} {total} 个号上榜 · 按评分降序", font=nte_font_origin(28), fill=SUBTEXT, anchor="lm"
     )
 
 
@@ -174,6 +178,8 @@ async def draw_rank_img(
     total: int,
     scope_label: str,
     self_overflow: tuple[int, RankEntry] | None = None,
+    *,
+    drive: bool = False,
 ) -> bytes:
     # 展示行 = 前 N 名 (+ 自己掉榜时榜尾补一行真实名次)
     display = [(i + 1, e, e.user_id == ev.user_id) for i, e in enumerate(entries)]
@@ -187,14 +193,14 @@ async def draw_rank_img(
     canvas = get_nte_bg(WIDTH, height, bg="bg4").convert("RGBA")
     canvas.alpha_composite(_vgradient(height, INDIGO_TOP, INDIGO_BOTTOM, 70))
     draw = ImageDraw.Draw(canvas)
-    await _draw_header(canvas, draw, char_name, char_id, total, scope_label)
+    await _draw_header(canvas, draw, char_name, char_id, total, scope_label, drive=drive)
 
     y = HEADER_H
     for index, ((rank, entry, is_self), avatar) in enumerate(zip(display, avatars)):
         if self_overflow is not None and index == len(display) - 1:
             draw.text((WIDTH // 2, y + 15), "· · ·", font=nte_font_origin(30), fill=SUBTEXT, anchor="mm")
             y += overflow_gap
-        await _draw_row(canvas, draw, y, rank, entry, avatar, is_self)
+        await _draw_row(canvas, draw, y, rank, entry, avatar, is_self, drive=drive)
         y += ROW_H + ROW_GAP
 
     add_footer(canvas)

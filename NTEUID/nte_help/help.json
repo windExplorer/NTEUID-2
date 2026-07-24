@@ -169,51 +169,6 @@
             }
         ]
     },
-    "异环工坊评分": {
-        "desc": "异环工坊 drive 模式评分（面板2 / 练度2 等孪生指令）",
-        "data": [
-            {
-                "name": "面板2",
-                "desc": "单角色详情卡（异环工坊 drive 评分）；别名 详情2 / 信息2",
-                "eg": "小吱面板2",
-                "need_ck": true,
-                "need_sk": false,
-                "need_admin": false
-            },
-            {
-                "name": "练度2",
-                "desc": "全角色练度统计表（异环工坊 drive 评分）",
-                "eg": "练度2",
-                "need_ck": true,
-                "need_sk": false,
-                "need_admin": false
-            },
-            {
-                "name": "评分排名2",
-                "desc": "本群账号按该角色 drive 评分降序排行；别名 XX评分排名2",
-                "eg": "娜娜莉评分排名2",
-                "need_ck": false,
-                "need_sk": false,
-                "need_admin": false
-            },
-            {
-                "name": "最强排行2",
-                "desc": "本群每个角色各取 drive 评分最强的号汇总排行",
-                "eg": "最强排行2",
-                "need_ck": false,
-                "need_sk": false,
-                "need_admin": false
-            },
-            {
-                "name": "角色最强面板2",
-                "desc": "本群该角色 drive 评分第一的账号面板",
-                "eg": "娜娜莉最强面板2",
-                "need_ck": false,
-                "need_sk": false,
-                "need_admin": false
-            }
-        ]
-    },
     "面板图管理": {
         "desc": "自定义单角色详情卡左侧面板图",
         "data": [

@@ -11,6 +11,7 @@ from gsuid_core.utils.image.convert import convert_img
 from ..utils.image import COLOR_WHITE, SmoothDrawer, add_footer, get_nte_bg, open_texture, char_img_ring
 from ..utils.resource.cdn import get_avatar_img, get_char_suit_detail_img
 from ..utils.fonts.nte_fonts import nte_font_origin
+from .character_card import grade_color, grade_icon
 
 CHAR_TEX = Path(__file__).parent / "texture2d" / "character"
 RANK_TEX = Path(__file__).parent / "texture2d" / "rank"
@@ -74,7 +75,7 @@ def _vgradient(h: int, alpha: int) -> Image.Image:
     return strip.resize((WIDTH, h), Image.Resampling.BILINEAR)
 
 
-async def _draw_row(canvas: Image.Image, draw: ImageDraw.ImageDraw, y: int, entry: BoardEntry) -> None:
+async def _draw_row(canvas: Image.Image, draw: ImageDraw.ImageDraw, y: int, entry: BoardEntry, *, drive: bool = False) -> None:
     canvas.alpha_composite(_row_frame(), (PANEL_X0, y))
     mid = y + ROW_H // 2
     # 角色头像 + 觉醒角标（不放名次序号：已按分降序，名次靠分数体现）
@@ -115,20 +116,21 @@ async def _draw_row(canvas: Image.Image, draw: ImageDraw.ImageDraw, y: int, entr
         fill=COLOR_WHITE,
         anchor="lm",
     )
-    # 评级图标 + 分数
-    if entry.grade in GRADE_COLOR:
-        canvas.alpha_composite(open_texture(CHAR_TEX / f"rank_{entry.grade}.png", (76, 76)), (1014, mid - 38))
+    # 评级图标 + 分数（drive 模式用异环工坊八档图标集）
+    icon = grade_icon(entry.grade, (92, 76), drive=drive)
+    if icon is not None:
+        canvas.alpha_composite(icon, (1014 + (92 - icon.width) // 2, mid - 38 + (76 - icon.height) // 2))
     draw.text(
         (1196, mid - 16),
         str(entry.score),
         font=nte_font_origin(52),
-        fill=GRADE_COLOR.get(entry.grade, COLOR_WHITE),
+        fill=grade_color(entry.grade, drive=drive),
         anchor="rm",
     )
     draw.text((1196, mid + 33), "分", font=nte_font_origin(22), fill=SUBTEXT, anchor="rm")
 
 
-def _draw_header(canvas: Image.Image, draw: ImageDraw.ImageDraw, scope_label: str) -> None:
+def _draw_header(canvas: Image.Image, draw: ImageDraw.ImageDraw, scope_label: str, *, drive: bool = False) -> None:
     scrim = Image.new("RGBA", (1, HEADER_H))
     for y in range(HEADER_H):
         scrim.putpixel((0, y), (14, 12, 28, int(40 + 170 * (y / (HEADER_H - 1)) ** 1.4)))
@@ -137,20 +139,20 @@ def _draw_header(canvas: Image.Image, draw: ImageDraw.ImageDraw, scope_label: st
     canvas.alpha_composite(
         logo.resize((round(logo.width * 120 / logo.height), 120), Image.Resampling.LANCZOS), (48, 38)
     )
-    draw.text((52, 208), f"{scope_label}最强排行", font=nte_font_origin(60), fill=COLOR_WHITE, anchor="lm")
+    draw.text((52, 208), f"{scope_label}最强排行{' · 异环工坊' if drive else ''}", font=nte_font_origin(60), fill=COLOR_WHITE, anchor="lm")
     SmoothDrawer().rounded_rectangle((54, 246, 360, 253), 3, fill=(251, 221, 188, 240), target=canvas)
 
 
-async def draw_strongest_board_img(entries: list[BoardEntry], scope_label: str) -> bytes:
+async def draw_strongest_board_img(entries: list[BoardEntry], scope_label: str, *, drive: bool = False) -> bytes:
     height = HEADER_H + len(entries) * ROW_H + max(0, len(entries) - 1) * ROW_GAP + 110
     canvas = get_nte_bg(WIDTH, height, bg="bg4").convert("RGBA")
     canvas.alpha_composite(_vgradient(height, 70))
     draw = ImageDraw.Draw(canvas)
-    _draw_header(canvas, draw, scope_label)
+    _draw_header(canvas, draw, scope_label, drive=drive)
 
     y = HEADER_H
     for entry in entries:
-        await _draw_row(canvas, draw, y, entry)
+        await _draw_row(canvas, draw, y, entry, drive=drive)
         y += ROW_H + ROW_GAP
 
     add_footer(canvas)
