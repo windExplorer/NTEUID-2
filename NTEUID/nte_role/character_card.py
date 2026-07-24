@@ -117,8 +117,22 @@ def _custom_panel_art(image: Image.Image) -> Image.Image:
     return Image.composite(panel_img, Image.new("RGBA", panel_size), panel_mask)
 
 
+# 原仓库内置等级图标（S/A/B），位于 texture2d，不在此处新增
+_ORIGINAL_RANKS = {"S", "A", "B"}
+# drive 附加模块的高阶等级图标（SS/SSS/ACE），独立于原仓库资源，存放于 extra/drive/ranks
+_EXTRA_RANK_DIR = Path(__file__).resolve().parents[1] / "extra" / "drive" / "ranks"
+
+
 def _grade_img(grade: str | None, size: int) -> Image.Image | None:
-    return open_texture(TEX / f"rank_{grade}.png", (size, size)) if grade in {"S", "A", "B"} else None
+    if grade is None:
+        return None
+    if grade in _ORIGINAL_RANKS:
+        return open_texture(TEX / f"rank_{grade}.png", (size, size))
+    # drive 高阶等级：从附加目录取，避免与原仓库图标混淆
+    extra = _EXTRA_RANK_DIR / f"rank_{grade}.png"
+    if extra.exists():
+        return open_texture(extra, (size, size))
+    return None
 
 
 async def _draw_attrs(
