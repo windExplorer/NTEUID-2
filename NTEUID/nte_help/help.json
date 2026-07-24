@@ -105,24 +105,24 @@
             },
             {
                 "name": "角色排名",
-                "desc": "本群刷新过面板的号按该角色评分降序排行；加 bot 看bot（觉醒 / 套装 / 评分 / 评级）",
-                "eg": "娜娜莉<bot>排名",
+                "desc": "本群刷新过面板的号按该角色评分降序排行（觉醒 / 套装 / 评分 / 评级）",
+                "eg": "娜娜莉排名",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
             },
             {
                 "name": "角色最强面板",
-                "desc": "本群该角色评分第一的账号面板；加 bot 看全服第一（头像取持有账号本人）",
-                "eg": "娜娜莉<bot>最强面板",
+                "desc": "本群该角色评分第一的账号面板（头像取持有账号本人）",
+                "eg": "娜娜莉最强面板",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
             },
             {
                 "name": "最强排行",
-                "desc": "本群每个角色各取评分最强的号汇总排行；加 bot 看全服。按评分降序",
-                "eg": "<bot>最强排行",
+                "desc": "本群每个角色各取评分最强的号汇总排行。按评分降序",
+                "eg": "最强排行",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
@@ -164,6 +164,51 @@
                 "desc": "本性像素 / 都市活力 / 活跃度 / 周本剩余",
                 "eg": "体力",
                 "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            }
+        ]
+    },
+    "异环工坊评分": {
+        "desc": "异环工坊 drive 模式评分（面板2 / 练度2 等孪生指令）",
+        "data": [
+            {
+                "name": "面板2",
+                "desc": "单角色详情卡（异环工坊 drive 评分）；别名 详情2 / 信息2",
+                "eg": "小吱面板2",
+                "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "练度2",
+                "desc": "全角色练度统计表（异环工坊 drive 评分）",
+                "eg": "练度2",
+                "need_ck": true,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "评分排名2",
+                "desc": "本群账号按该角色 drive 评分降序排行；别名 XX评分排名2",
+                "eg": "娜娜莉评分排名2",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "最强排行2",
+                "desc": "本群每个角色各取 drive 评分最强的号汇总排行",
+                "eg": "最强排行2",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "角色最强面板2",
+                "desc": "本群该角色 drive 评分第一的账号面板",
+                "eg": "娜娜莉最强面板2",
+                "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
             }
