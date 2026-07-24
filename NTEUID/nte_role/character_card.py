@@ -8,6 +8,7 @@ from gsuid_core.logger import logger
 from gsuid_core.utils.image.convert import convert_img
 
 from .score import CharacterScore, EquipmentScore, score_character
+from . import score as _score_module
 from .heartlike import heart_level
 from .panel_image import get_character_panel_img
 from ..utils.image import (
@@ -117,24 +118,47 @@ def _custom_panel_art(image: Image.Image) -> Image.Image:
     return Image.composite(panel_img, Image.new("RGBA", panel_size), panel_mask)
 
 
-# 原仓库内置等级图标（S/A/B），位于 texture2d，不在此处新增
-_ORIGINAL_RANKS = {"S", "A", "B"}
 # drive 附加模块的高阶等级图标（SS/SSS/ACE），独立于原仓库资源，存放于 extra/drive/ranks
 _EXTRA_RANK_DIR = Path(__file__).resolve().parents[1] / "extra" / "drive" / "ranks"
 
+# 各评分系统的等级图标集：(primary 优先目录, fallback 兜底目录)。
+# 新增评分系统时，只需在此登记其图标目录即可；_grade_img 与所有调用点均无需改动。
+_GRADE_ICON_SETS: dict[str, tuple[Path, Path]] = {
+    "nteuid": (TEX, _EXTRA_RANK_DIR),       # 原版 texture2d（S/A/B），缺档回退 extra/drive/ranks
+    "异环工坊": (_EXTRA_RANK_DIR, TEX),      # drive 盘 LuckiestGuy 八档，缺档回退 texture2d
+}
+_DEFAULT_ICON_SET = "nteuid"
 
-def _grade_img(grade: str | None, size: int) -> Image.Image | None:
+
+def _grade_img(
+    grade: str | None, size: int | tuple[int, int], score_mode: str | None = None
+) -> Image.Image | None:
     if grade is None:
         return None
-    # drive 附加模块的统一风格图标优先（覆盖 drive 八档 D/C/B/A/S/SS/SSS/ACE），
-    # 与原仓库 texture2d 的 S/A/B 形状区分开，整卡风格统一
-    extra = _EXTRA_RANK_DIR / f"rank_{grade}.png"
-    if extra.exists():
-        return open_texture(extra, (size, size))
-    # 兜底：原仓库内置等级图标（S/A/B），仅在附加图标缺失时使用
-    if grade in _ORIGINAL_RANKS:
-        return open_texture(TEX / f"rank_{grade}.png", (size, size))
-    return None
+    if score_mode is None:
+        score_mode = _score_module._score_mode()
+    primary, fallback = _GRADE_ICON_SETS.get(score_mode, _GRADE_ICON_SETS[_DEFAULT_ICON_SET])
+    p = primary / f"rank_{grade}.png"
+    if p.exists():
+        img = open_texture(p)
+    else:
+        f = fallback / f"rank_{grade}.png"
+        if f.exists():
+            img = open_texture(f)
+        else:
+            return None
+    # 目标尺寸：int -> 正方形(原行为)；tuple(w,h) -> 按 contain 等比缩放，绝不压扁。
+    # 多字档(SS/SSS/ACE)源图是宽画布矩形，必须走这里才能保持比例且尽量大。
+    if isinstance(size, int):
+        w = h = size
+    else:
+        w, h = size
+    sw, sh = img.size
+    scale = min(w / sw, h / sh)
+    nw, nh = max(1, round(sw * scale)), max(1, round(sh * scale))
+    if (nw, nh) != (sw, sh):
+        img = img.resize((nw, nh), Image.Resampling.LANCZOS)
+    return img
 
 
 async def _draw_attrs(
@@ -209,9 +233,18 @@ def _draw_score(
     x, y = xy
     canvas.alpha_composite(open_texture(TEX / "score_bg.png"), (x, y))
     canvas.alpha_composite(open_texture(TEX / "score_fg.png"), (x, y))
-    rank = _grade_img(score.grade if score is not None else None, 92)
+    # 顶部总评图标同样跟随当前评分模式：drive(异环工坊) 用 LuckiestGuy(ranks/)，其余用原版 texture2d
+    grade = score.grade if score is not None else None
+    is_multi = grade in ("SS", "SSS", "ACE")  # 多字档为宽画布图标
+    rank = _grade_img(grade, (200, 92) if is_multi else 92)
     if rank is not None:
-        canvas.alpha_composite(rank, (x + 133, y + 58))
+        if is_multi:
+            # 宽图标：等比缩放后居中放在原 92 框的中心点，避免压扁且不重叠
+            nw, nh = rank.size
+            cx, cy = x + 133 + 46, y + 58 + 46
+            canvas.alpha_composite(rank, (cx - nw // 2, cy - nh // 2))
+        else:
+            canvas.alpha_composite(rank, (x + 133, y + 58))
     score_text = "--分" if score is None else f"{score.score}分"
     draw.text((x + 180, y + 218), score_text, font=nte_font_origin(42), fill=COLOR_WHITE, anchor="mm")
 
@@ -303,19 +336,30 @@ async def _draw_drive(
     drive = await get_char_suit_drive_img(item.id) if item.id else None
     if drive is not None:
         canvas.alpha_composite(drive.convert("RGBA").resize((128, 128)), (x, y - 2))
-    rank = _grade_img(item_score.grade if item_score is not None else None, 48)
+    # 底部盘区块图标跟随当前评分模式（图标集由 _GRADE_ICON_SETS 注册表决定）
+    grade = item_score.grade if item_score is not None else None
+    is_multi = grade in ("SS", "SSS", "ACE")  # 多字档为宽画布图标
+    rank = _grade_img(grade, (116, 58) if is_multi else 58)
     if rank is not None:
-        canvas.alpha_composite(rank, (x + 110, y + 62))
+        if is_multi:
+            # 宽图标：等比缩放后居中放在 58 框的中心点（整体右移 20 以贴合盘块右侧）
+            nw, nh = rank.size
+            cx, cy = x + 130 + 29, y + 54 + 29
+            canvas.alpha_composite(rank, (cx - nw // 2, cy - nh // 2))
+        else:
+            canvas.alpha_composite(rank, (x + 130, y + 54))
     if item_score is not None:
         score_text = f"{item_score.score:.1f}分"
         score_w = max(104, round(draw.textlength(score_text, font=nte_font_origin(24))) + 34)
+        # 多字档图标更宽，把分数药丸右移以免遮挡（仍在 ad_bg 360 宽范围内）；整组右移 20 与图标同步
+        pill_x = x + 225 if is_multi else x + 196
         SmoothDrawer().rounded_rectangle(
-            (x + 158, y + 70, x + 158 + score_w, y + 108),
+            (pill_x, y + 70, pill_x + score_w, y + 108),
             19,
             fill=(238, 72, 145, 245),
             target=canvas,
         )
-        draw.text((x + 158 + score_w // 2, y + 89), score_text, font=nte_font_origin(24), fill=COLOR_WHITE, anchor="mm")
+        draw.text((pill_x + score_w // 2, y + 89), score_text, font=nte_font_origin(24), fill=COLOR_WHITE, anchor="mm")
     draw.text(
         (x + 116, y + 34),
         _fit_text(draw, item.name, 220, nte_font_origin(26)),
