@@ -42,7 +42,7 @@ CHAR_ELEMENT_PATH = ROLE_PATH / "element"
 CHAR_AWAKEN_PATH = ROLE_PATH / "awaken"
 CHAR_PROPERTY_PATH = ROLE_PATH / "property"
 CHAR_SUIT_DETAIL_PATH = ROLE_PATH / "suit" / "detail"
-CHAR_SUIT_DRIVE_PATH = ROLE_PATH / "suit" / "drive"
+CHAR_SUIT_DRIVE_PATH = MAIN_PATH / "extra" / "drive" / "images"
 
 # 武器（弧盘）
 WEAPON_PATH = MAIN_PATH / "weapon"

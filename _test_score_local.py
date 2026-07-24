@@ -1,7 +1,7 @@
 import sys, types, asyncio
 from pathlib import Path
 
-ROOT = Path(r"e:\WP-V2\Mine\NTEUID-2")
+ROOT = Path(r"x:\_WorkSpace\GitHub_Pro\NTEUID-2")
 NTEUID = ROOT / "NTEUID"
 
 # ---- 0) 把本地桩包 stubs/ 放到最前，让 import gsuid_core.* 命中桩而非真实框架 ----
@@ -31,7 +31,7 @@ from NTEUID.utils.sdk.tajiduo_model import (  # noqa: E402
     CharQuality,
 )
 from NTEUID.nte_role.score import _score_character_nteuid  # noqa: E402
-from NTEUID.nte_role.score_drive import score_character_drive  # noqa: E402
+from NTEUID.extra.drive.score_drive import score_character_drive  # noqa: E402
 from NTEUID.nte_role import character_card  # noqa: E402
 from NTEUID.nte_role.character_card import draw_character_card_with_original  # noqa: E402
 from PIL import Image  # noqa: E402

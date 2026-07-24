@@ -21,19 +21,20 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from ..utils.sdk.tajiduo_model import (
+from NTEUID.utils.sdk.tajiduo_model import (
     CharQuality,
     CharacterDetail,
     CharacterSuitItem,
 )
 
-# 新仓库 config 目录：克隆仓库 NTE-Drive-Calculator 与本项目(NTEUID)同级（仓库根目录）。
-# 兼容两种放置位置：仓库根目录 或 NTEUID/ 下，优先取实际存在的那个。
+# drive 配置目录：优先用项目内置附加目录 NTEUID/extra/drive/config（已随仓库分发，
+# 不依赖外部克隆仓库）；外部克隆仓库 NTE-Drive-Calculator/config 仅作兜底。
 def _resolve_drive_config_dir() -> Path:
     here = Path(__file__).resolve()
+    bundled = here.parents[2] / "extra" / "drive" / "config"  # 内置附加配置
     candidates = [
-        here.parents[2] / "NTE-Drive-Calculator" / "config",  # 仓库根目录
-        here.parents[1] / "NTE-Drive-Calculator" / "config",  # NTEUID/ 下
+        bundled,
+        here.parents[2] / "NTE-Drive-Calculator" / "config",  # 仓库根目录（兜底）
     ]
     for c in candidates:
         if (c / "roles.json").exists():

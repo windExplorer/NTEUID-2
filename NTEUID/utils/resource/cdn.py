@@ -207,6 +207,9 @@ async def get_char_suit_detail_img(entry_id: str) -> Image.Image:
 # 示例: get_char_suit_drive_img("incantation_purple") -> {CDN}/character/suit/drive/incantation_purple.png
 @safe_load_image
 async def get_char_suit_drive_img(drive_id: str) -> Image.Image:
+    local = _load_local_image(CHAR_SUIT_DRIVE_PATH / f"{drive_id}.png")
+    if local is not None:
+        return local
     return await _get(CHAR_SUIT_DRIVE_PATH, f"character/suit/drive/{drive_id}.png")
 
 

@@ -233,7 +233,7 @@ def score_character(character: CharacterDetail):
     - 异环工坊：新仓库(NTE-Drive-Calculator)成色分+毕业率，返回 DriveCharacterScore
     """
     if _score_mode() == "异环工坊":
-        from .score_drive import score_character_drive
+        from NTEUID.extra.drive.score_drive import score_character_drive
 
         try:
             return score_character_drive(character)
