@@ -126,12 +126,14 @@ _EXTRA_RANK_DIR = Path(__file__).resolve().parents[1] / "extra" / "drive" / "ran
 def _grade_img(grade: str | None, size: int) -> Image.Image | None:
     if grade is None:
         return None
-    if grade in _ORIGINAL_RANKS:
-        return open_texture(TEX / f"rank_{grade}.png", (size, size))
-    # drive 高阶等级：从附加目录取，避免与原仓库图标混淆
+    # drive 附加模块的统一风格图标优先（覆盖 drive 八档 D/C/B/A/S/SS/SSS/ACE），
+    # 与原仓库 texture2d 的 S/A/B 形状区分开，整卡风格统一
     extra = _EXTRA_RANK_DIR / f"rank_{grade}.png"
     if extra.exists():
         return open_texture(extra, (size, size))
+    # 兜底：原仓库内置等级图标（S/A/B），仅在附加图标缺失时使用
+    if grade in _ORIGINAL_RANKS:
+        return open_texture(TEX / f"rank_{grade}.png", (size, size))
     return None
 
 
