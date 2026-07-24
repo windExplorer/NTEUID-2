@@ -7,3 +7,9 @@ NTEUID/resource/
 .codegraph/
 .reasonix/
 .vscode/
+
+# 第三方克隆仓库（本地配置源，NTE-Drive-Calculator，不纳入版本控制）
+NTE-Drive-Calculator/
+
+# 本地出图生成产物
+test_result/
