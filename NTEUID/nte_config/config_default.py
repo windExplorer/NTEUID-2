@@ -198,4 +198,11 @@ CONFIG_DEFAULT: dict[str, GSC] = {
         1,
         20,
     ),
+    # 评分后端：nteuid=本项目养成度评分（默认）；异环工坊=新仓库(NTE-Drive-Calculator)成色分+毕业率
+    "NTEScoreMode": GsStrConfig(
+        "评分模式",
+        "角色评分后端：nteuid=本项目养成度；异环工坊=新仓库成色分+毕业率",
+        "nteuid",
+        options=["nteuid", "异环工坊"],
+    ),
 }

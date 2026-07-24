@@ -193,7 +193,7 @@ def score_equipment(
     )
 
 
-def score_character(character: CharacterDetail) -> CharacterScore | None:
+def _score_character_nteuid(character: CharacterDetail) -> CharacterScore | None:
     plan = load_score_plan(character.id)
     if plan is None:
         return None
@@ -215,6 +215,31 @@ def score_character(character: CharacterDetail) -> CharacterScore | None:
         grade=grades.grade_of(score / plan.max_score),
         equipment=equipment,
     )
+
+
+def _score_mode() -> str:
+    try:
+        from ..nte_config.nte_config import NTEConfig
+
+        return (NTEConfig.get_config("NTEScoreMode").data or "nteuid").strip().lower()
+    except Exception:
+        return "nteuid"
+
+
+def score_character(character: CharacterDetail):
+    """角色评分统一入口：按插件配置 NTEScoreMode 分派后端。
+
+    - nteuid（默认）：本项目养成度评分，返回 CharacterScore
+    - 异环工坊：新仓库(NTE-Drive-Calculator)成色分+毕业率，返回 DriveCharacterScore
+    """
+    if _score_mode() == "异环工坊":
+        from .score_drive import score_character_drive
+
+        try:
+            return score_character_drive(character)
+        except Exception:
+            return None
+    return _score_character_nteuid(character)
 
 
 def _prop_score(prop: CharacterProperty, attrs: AttributeTable) -> float:

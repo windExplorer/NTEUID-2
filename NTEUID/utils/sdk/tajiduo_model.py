@@ -287,6 +287,9 @@ class CharacterSuitItem(_TajiduoModel):
     lev: int = 0
     main_properties: list[CharacterProperty] = Field(default_factory=list, alias="mainProperties")
     properties: list[CharacterProperty] = Field(default_factory=list)
+    # 可选：接口若返回则自动采用，否则由评分后端按默认值兜底
+    quality: CharQuality | None = None
+    area: int = Field(default=0, description="驱动盘区格数（满级常见为 4）")
 
 
 class CharacterSuit(_TajiduoModel):
