@@ -515,7 +515,7 @@
         "data": [
             {
                 "name": "添加刮刮乐ck",
-                "desc": "绑定 kf.wanmei.com cookie；需先登录异环账号",
+                "desc": "绑定 kf cookie（请私聊，保护隐私）；需先登录",
                 "eg": "添加刮刮乐ck oauth=xxx; ...",
                 "need_ck": false,
                 "need_sk": false,
