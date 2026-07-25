@@ -31,15 +31,30 @@ class _UserAliasFile(RootModel[dict[str, list[str]]]):
     pass
 
 
+# ── 内置别名（写在代码里，不受 resource 同步覆盖）──
+_BUILTIN_CHAR_ALIASES: dict[str, list[str]] = {
+    "1075": ["161"],  # 伊洛伊
+}
+_BUILTIN_FORK_ALIASES: dict[str, list[str]] = {}
+
+
 class AliasRegistry:
     """单一实体类型（角色 / 武器）的 id↔name↔alias 索引 + 用户态别名读写。
     实例化后立刻 reload 一次；后续静态资源更新或用户态写入由调用方触发 reload。"""
 
-    def __init__(self, kind: EntityKind, label: str, meta_path: Path, user_alias_path: Path):
-        self.kind = kind  # "char" / "fork"，给 catalog 派发路径用
-        self.label = label  # "角色" / "武器"，文案直接拼
+    def __init__(
+        self,
+        kind: EntityKind,
+        label: str,
+        meta_path: Path,
+        user_alias_path: Path,
+        builtin_aliases: dict[str, list[str]] | None = None,
+    ):
+        self.kind = kind
+        self.label = label
         self._meta_path = meta_path
         self._user_alias_path = user_alias_path
+        self._builtin_aliases = builtin_aliases or {}
         self._id_to_name: dict[str, str] = {}
         self._name_to_aliases: dict[str, list[str]] = {}
         self.reload()
@@ -53,17 +68,7 @@ class AliasRegistry:
             return
 
         user = self._load_user().root
-        raw = self._meta_path.read_text(encoding="utf-8")
-        meta = _MetaFile.model_validate_json(raw).root
-
-        # debug: 确认 "161" 是否在加载后的数据中
-        if self.kind == "char":
-            for eid, m in meta.items():
-                if "161" in m.aliases:
-                    logger.info(f"[NTEUID-debug] reload 发现 161 在 meta[{eid}]({m.name}) 的别名中")
-                    break
-            else:
-                logger.warning(f"[NTEUID-debug] reload 后 meta 中未找到 161！文件路径={self._meta_path}")
+        meta = _MetaFile.model_validate_json(self._meta_path.read_text(encoding="utf-8")).root
 
         id_to_name: dict[str, str] = {}
         name_to_aliases: dict[str, list[str]] = {}
@@ -73,11 +78,15 @@ class AliasRegistry:
             id_to_name[entity_id] = m.name
             if m.name in name_to_aliases:
                 continue
+            # 优先级：静态aliases → 内置别名 → 用户别名 → 标准名
             seen: list[str] = []
-            for alias in [*m.aliases, *user.get(entity_id, []), m.name]:
+            for alias in [*m.aliases, *self._builtin_aliases.get(entity_id, []), *user.get(entity_id, []), m.name]:
                 if alias and alias not in seen:
                     seen.append(alias)
             name_to_aliases[m.name] = seen
+
+        self._id_to_name = id_to_name
+        self._name_to_aliases = name_to_aliases
 
         self._id_to_name = id_to_name
         self._name_to_aliases = name_to_aliases
@@ -116,7 +125,10 @@ class AliasRegistry:
         self.reload()
 
     def remove_alias(self, entity_id: str, alias: str) -> bool:
-        """成功删返回 True；预置别名 / 不存在 → False。"""
+        """成功删返回 True；预置别名 / 内置别名 / 不存在 → False。"""
+        # 内置别名不可删除
+        if alias in self._builtin_aliases.get(entity_id, []):
+            return False
         f = self._load_user()
         user_aliases = f.root.get(entity_id, [])
         if alias not in user_aliases:
@@ -146,8 +158,8 @@ class AliasRegistry:
         )
 
 
-CHARS = AliasRegistry("char", "角色", CHAR_META_PATH, USER_CHAR_ALIAS_PATH)
-FORKS = AliasRegistry("fork", "武器", FORK_META_PATH, USER_FORK_ALIAS_PATH)
+CHARS = AliasRegistry("char", "角色", CHAR_META_PATH, USER_CHAR_ALIAS_PATH, _BUILTIN_CHAR_ALIASES)
+FORKS = AliasRegistry("fork", "武器", FORK_META_PATH, USER_FORK_ALIAS_PATH, _BUILTIN_FORK_ALIASES)
 
 _REGISTRIES: tuple[AliasRegistry, ...] = (CHARS, FORKS)
 
@@ -181,16 +193,9 @@ async def name_of_with_uid(query: str | None, uid: str) -> str | None:
         return None
 
     # 1) 先走静态别名
-    try:
-        _names = {n: a for n, a in CHARS._name_to_aliases.items() if "161" in a}
-        logger.info(f"[NTEUID-debug] 别名字典 in: {_names}")
-        name = CHARS.name_of(query)
-        logger.info(f"[NTEUID-debug] name_of('{query}') = {name!r}, _meta_path={CHARS._meta_path}")
-        if name:
-            return name
-    except Exception as e:
-        logger.exception(f"[NTEUID-debug] name_of 异常: {e}")
-        return None
+    name = CHARS.name_of(query)
+    if name:
+        return name
 
     # 2) 动态主角别名：检查用户拥有哪个
     if query in _AVATAR_ALIASES and uid:
