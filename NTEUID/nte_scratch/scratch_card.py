@@ -301,7 +301,7 @@ async def draw_scratch_today(user_id: str, bot_id: str) -> bytes | str:
         today = await fetch_today_data(row.cookie, row.uid)
     except Exception as e:
         logger.exception(f"[刮刮乐] 今日查询失败: {e}")
-        return f"今日数据查询失败：{e}"
+        return "今日刮刮乐数据查询失败，请稍后重试或联系管理员。"
     if today is None:
         return f"📅 {datetime.now(TZ_BJ).strftime('%Y-%m-%d')} 暂无刮刮乐记录"
     return await _render_today_image(today, datetime.now(TZ_BJ).strftime("%Y-%m-%d"))
@@ -409,4 +409,93 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
     y += 36
 
     canvas = canvas.crop((0, 0, W_TODAY, y))
+    return await convert_img(canvas)
+
+
+# ── 排名图 ──
+
+async def draw_scratch_rank() -> bytes | str:
+    from ..utils.database import NTEKfCookie, NTEUser
+
+    rows = await NTEKfCookie.list_ranked_by_profit(limit=10)
+    if not rows:
+        return "暂无刮刮乐排名数据。"
+
+    # 取用户展示名 + QQ头像
+    from ..utils.avatar import get_qq_avatar
+
+    user_names: dict[str, str] = {}
+    user_avatars: dict[str, Image.Image] = {}
+    for row in rows:
+        name = row.user_id
+        try:
+            u = await NTEUser.get_active(row.user_id, row.bot_id)
+            if u and u.role_name:
+                name = u.role_name
+        except Exception:
+            pass
+        user_names[row.user_id] = name
+        try:
+            av = await get_qq_avatar(row.user_id)
+            av = av.resize((30, 30), Image.LANCZOS)
+            mask = Image.new("L", (30, 30), 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, 30, 30], fill=255)
+            av_rgba = Image.new("RGBA", (30, 30), (0, 0, 0, 0))
+            av_rgba.paste(av, (0, 0), mask)
+            user_avatars[row.user_id] = av_rgba
+        except Exception:
+            pass
+
+    _MAX_H = 2000
+    rank_w = 700
+    canvas = get_nte_bg(rank_w, _MAX_H, bg="bg3")
+    _overlay = Image.new("RGBA", (rank_w, _MAX_H), (20, 22, 28, 120))
+    canvas.paste(_overlay, (0, 0), _overlay)
+    d = ImageDraw.Draw(canvas)
+
+    # 标题
+    _title = Image.new("RGBA", (rank_w, 120), (30, 32, 40, 180))
+    canvas.paste(_title, (0, 0), _title)
+    d.rectangle([20, 118, 80, 120], fill=(80, 140, 210))
+    d.text((20, 28), "刮刮乐排行", fill=(255, 255, 255), font=F36)
+    d.text((20, 74), "累计总盈亏排名 TOP10", fill=(170, 178, 190), font=F16)
+    y = 140
+
+    # 表头
+    SD.rr(d, (20, y, rank_w - 20, y + 28), 8, (55, 58, 66))
+    d.text((36, y + 5), "#", fill=MUTED, font=F14)
+    d.text((104, y + 5), "用户", fill=TEXT, font=F14)
+    d.text((180, y + 5), "总次数", fill=TEXT, font=F14)
+    d.text((260, y + 5), "总消费", fill=TEXT, font=F14)
+    d.text((360, y + 5), "总盈亏", fill=TEXT, font=F14)
+    d.text((480, y + 5), "回报率", fill=TEXT, font=F14)
+    y += 32
+
+    # 排名
+    for idx, row in enumerate(rows):
+        bg2 = CARD if idx % 2 == 0 else CARD_ALT
+        SD.rr(d, (20, y, rank_w - 20, y + 36), 8, bg2)
+        rank_clr = GOLD if idx == 0 else (200, 200, 210) if idx == 1 else (180, 140, 100) if idx == 2 else MUTED
+        d.text((34, y + 8), str(idx + 1), fill=rank_clr, font=F18)
+        av = user_avatars.get(row.user_id)
+        if av:
+            canvas.paste(av, (66, y + 3), av)
+        disp = user_names.get(row.user_id, row.user_id)[:10]
+        d.text((104, y + 8), disp, fill=TEXT, font=F14)
+        cnt = row.total_spent // 10000 if row.total_spent else 0
+        d.text((180, y + 8), str(cnt), fill=MUTED, font=F13)
+        d.text((260, y + 8), f"{row.total_spent:,}", fill=MUTED, font=F13)
+        pft_clr = GREEN if row.profit >= 0 else RED
+        d.text((360, y + 8), f"{row.profit:+,}", fill=pft_clr, font=F14)
+        if row.return_rate is not None:
+            rt_clr = GREEN if row.return_rate >= 100 else RED if row.return_rate < 50 else GOLD
+            d.text((480, y + 8), f"{row.return_rate:.1f}%", fill=rt_clr, font=F13)
+        y += 44
+
+    y += 30
+    d.rectangle([0, y, rank_w, y + 36], fill=(30, 32, 40))
+    d.text((20, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
+    y += 36
+
+    canvas = canvas.crop((0, 0, rank_w, y))
     return await convert_img(canvas)

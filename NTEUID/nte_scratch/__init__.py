@@ -22,7 +22,7 @@ from .scratch_service import (
     delete_ck,
     auto_refresh_all,
 )
-from .scratch_card import draw_scratch_stats, draw_scratch_today
+from .scratch_card import draw_scratch_stats, draw_scratch_today, draw_scratch_rank
 
 sv_scratch_bind = SV("nte刮刮乐绑定")
 sv_scratch = SV("nte刮刮乐")
@@ -72,6 +72,15 @@ async def nte_scratch_stats(bot: Bot, ev: Event):
 @sv_scratch.on_fullmatch(("今日刮刮乐", "今天刮刮乐"))
 async def nte_scratch_today(bot: Bot, ev: Event):
     res = await draw_scratch_today(ev.user_id, ev.bot_id)
+    if isinstance(res, str):
+        await bot.send(res)
+    else:
+        await bot.send(MessageSegment.image(res))
+
+
+@sv_scratch.on_fullmatch(("刮刮乐打榜", "刮刮乐排行全服"))
+async def nte_scratch_rank(bot: Bot, ev: Event):
+    res = await draw_scratch_rank()
     if isinstance(res, str):
         await bot.send(res)
     else:

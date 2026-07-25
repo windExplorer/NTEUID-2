@@ -1194,6 +1194,18 @@ class NTEKfCookie(BaseIDModel, table=True):
         result = await session.execute(select(cls))
         return list(result.scalars().all())
 
+    @classmethod
+    @with_session
+    async def list_ranked_by_profit(
+        cls: type[T_NTEKfCookie],
+        session: AsyncSession,
+        limit: int = 20,
+    ) -> list[T_NTEKfCookie]:
+        result = await session.execute(
+            select(cls).where(col(cls.profit) != 0).order_by(col(cls.profit).desc()).limit(limit)
+        )
+        return list(result.scalars().all())
+
 
 @site.register_admin
 class NTEUserAdmin(GsAdminModel):

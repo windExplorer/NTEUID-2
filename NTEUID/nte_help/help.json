@@ -546,6 +546,14 @@
                 "need_admin": false
             },
             {
+                "name": "刮刮乐打榜",
+                "desc": "全服刮刮乐总盈亏排名 TOP10",
+                "eg": "刮刮乐打榜",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
                 "name": "删除刮刮乐ck",
                 "desc": "解绑刮刮乐 ck，清除绑定的数据",
                 "eg": "删除刮刮乐ck",
