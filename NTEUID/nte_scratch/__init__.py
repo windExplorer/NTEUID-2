@@ -8,6 +8,8 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from gsuid_core.sv import SV
 from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
@@ -27,14 +29,36 @@ from .scratch_card import draw_scratch_stats, draw_scratch_today, draw_scratch_r
 sv_scratch_bind = SV("nte刮刮乐绑定")
 sv_scratch = SV("nte刮刮乐")
 
-COOKIE_HELP = (
-    "⚠️ 请私聊机器人操作，保护你的 cookie 隐私！\n\n"
-    "💡 如何获取刮刮乐 ck？\n"
-    "1. 浏览器打开 https://kf.wanmei.com/selfItemFlowQuery?gameId=191\n"
-    "2. F12 → 网络 → 刷新页面 → 找到任意请求\n"
-    "3. 复制请求头中的 Cookie 值（完整的一段）\n"
-    "4. 私聊机器人发送：添加刮刮乐ck oauth=xxx; ..."
-)
+COOKIE_HELP = "请私聊发送：添加刮刮乐ck oauth=xxx; ..."
+
+_COOKIE_GUIDE_NODES = [
+    MessageSegment.node([
+        MessageSegment.text(
+            "方法一（推荐 · 安卓专属）\n"
+            "发送【ck软件】下载 Cookie 提取工具\n"
+            "安装后会自动打开登录页面\n"
+            "登录完成后点右下角按钮即可复制完整 Cookie\n"
+            "再回来发送：添加刮刮乐ck <粘贴>"
+        ),
+    ]),
+    MessageSegment.node([
+        MessageSegment.text(
+            "方法二（安卓/IOS通用）\n"
+            "浏览器打开下方链接下载 APK：\n"
+            "https://github.com/windExplorer/cookies-extractor/releases\n"
+            "下载安装后操作同方法一"
+        ),
+    ]),
+    MessageSegment.node([
+        MessageSegment.text(
+            "方法三（手动获取 · 安卓/IOS/PC）\n"
+            "1. 浏览器打开 https://kf.wanmei.com/selfItemFlowQuery?gameId=191\n"
+            "2. 登录后 F12 → 网络 → 找到任意请求\n"
+            "3. 复制请求头中 Cookie 的完整值\n"
+            "4. 回来发送：添加刮刮乐ck <粘贴>"
+        ),
+    ]),
+]
 
 
 @sv_scratch_bind.on_regex(r"^添加刮刮乐ck\s*(?P<cookie>.+)$", block=True)
@@ -48,10 +72,10 @@ async def nte_scratch_bind(bot: Bot, ev: Event):
 
 @sv_scratch_bind.on_fullmatch(("添加刮刮乐ck"), block=True)
 async def nte_scratch_bind_empty(bot: Bot, ev: Event):
-    """只发了"添加刮刮乐ck"没带参数时显示帮助"""
+    """只发了"添加刮刮乐ck"没带参数时显示合并转发帮助"""
     if ev.group_id:
         return await bot.send("⚠️ 添加刮刮乐 ck 涉及 cookie 隐私，请私聊机器人操作！")
-    await bot.send(COOKIE_HELP)
+    await bot.send(list(_COOKIE_GUIDE_NODES))
 
 
 @sv_scratch.on_fullmatch(("更新刮刮乐", "刷新刮刮乐"))
@@ -87,7 +111,12 @@ async def nte_scratch_rank(bot: Bot, ev: Event):
         await bot.send(MessageSegment.image(res))
 
 
-@sv_scratch.on_fullmatch(("删除刮刮乐ck", "清除刮刮乐ck", "解绑刮刮乐"))
+@sv_scratch.on_fullmatch(("ck软件", "获取ck软件"))
+async def nte_scratch_apk(bot: Bot, ev: Event):
+    apk_path = Path(__file__).parent / "ck_tool.apk"
+    if not apk_path.exists():
+        return await bot.send("ck 提取工具暂未上传，请联系管理员。")
+    await bot.send(Message.file(apk_path, "CK获取工具.apk"))
 async def nte_scratch_delete(bot: Bot, ev: Event):
     msg = await delete_ck(ev.user_id, ev.bot_id)
     await bot.send(msg)
