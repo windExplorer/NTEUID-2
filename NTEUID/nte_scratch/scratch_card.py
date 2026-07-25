@@ -8,11 +8,12 @@ from datetime import datetime, timedelta, timezone
 from PIL import Image, ImageDraw
 
 from gsuid_core.logger import logger
-from gsuid_core.utils.image.convert import convert_img
 
 from ..utils.image import get_nte_bg, draw_card
 
 TZ_BJ = timezone(timedelta(hours=8))
+SCALE = 2  # 超采样倍数：原生分辨率 ×2，放大后依旧清晰
+
 W = 760
 W_TODAY = 680
 M = 20
@@ -20,8 +21,9 @@ M = 20
 
 def _f(size: int):
     from ..utils.fonts.nte_fonts import nte_font_bold
-    return nte_font_bold(size)
+    return nte_font_bold(size * SCALE)
 
+F12 = _f(12)
 F13 = _f(13); F14 = _f(14); F15 = _f(15); F16 = _f(16)
 F18 = _f(18); F20 = _f(20); F24 = _f(24); F28 = _f(28)
 F30 = _f(30); F36 = _f(36)
@@ -37,6 +39,55 @@ RED = (240, 80, 80)
 PURPLE = (180, 130, 255)
 YELLOW_BRIGHT = (255, 200, 60)
 SHADOW_COLOR = (30, 32, 38)
+
+
+class ScaledDraw:
+    """把 760 坐标系的绘制自动放大 SCALE 倍，使输出为高清图。"""
+
+    def __init__(self, draw: ImageDraw.ImageDraw, k: int):
+        self._d = draw
+        self._k = k
+
+    def _s(self, v: float) -> float:
+        return v * self._k
+
+    def text(self, xy, *args, **kwargs):
+        x, y = xy
+        self._d.text((self._s(x), self._s(y)), *args, **kwargs)
+
+    def rectangle(self, xy, *args, **kwargs):
+        if len(xy) == 2:
+            x0 = y0 = x1 = y1 = 0
+            (x0, y0), (x1, y1) = xy, xy
+        else:
+            x0, y0, x1, y1 = xy
+        self._d.rectangle(
+            [self._s(x0), self._s(y0), self._s(x1), self._s(y1)], *args, **kwargs
+        )
+
+    def rounded_rectangle(self, xy, radius=0, *args, **kwargs):
+        x0, y0, x1, y1 = xy
+        self._d.rounded_rectangle(
+            [self._s(x0), self._s(y0), self._s(x1), self._s(y1)],
+            radius=self._s(radius), *args, **kwargs,
+        )
+
+    def line(self, xy, *args, **kwargs):
+        self._d.line([tuple(self._s(v) for v in p) for p in xy], *args, **kwargs)
+
+    def ellipse(self, xy, *args, **kwargs):
+        x0, y0, x1, y1 = xy
+        self._d.ellipse(
+            [self._s(x0), self._s(y0), self._s(x1), self._s(y1)], *args, **kwargs
+        )
+
+
+def _to_image_bytes(canvas: "Image.Image") -> bytes:
+    from io import BytesIO
+    buf = BytesIO()
+    # 关闭色度子采样 + 高质量，保证文字放大锐利（与帮助图一致）
+    canvas.convert("RGB").save(buf, format="JPEG", quality=95, subsampling=0)
+    return buf.getvalue()
 
 
 class SD:
@@ -85,7 +136,7 @@ async def draw_scratch_stats(user_id: str, bot_id: str) -> bytes | str:
     from ..utils.database import NTEKfCookie
     row = await NTEKfCookie.get_by_user(user_id, bot_id)
     if row is None or not row.raw_data or row.raw_data == "{}":
-        return "暂无刮刮乐数据，请先去私聊【添加刮刮乐ck】"
+        return "暂无刮刮乐数据，请先去私聊【nte添加刮刮乐ck】"
     s = json.loads(row.raw_data)
     return await _render_stats_image(s, row.last_updated, row.uid)
 
@@ -146,20 +197,20 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     award_items = sorted(award_counts.items(), key=lambda x: -_aval(x[0]))[:8]
 
     _MAX_H = 3000
-    canvas = get_nte_bg(W, _MAX_H, bg="bg3")
-    _overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
+    canvas = get_nte_bg(W * SCALE, _MAX_H * SCALE, bg="bg3")
+    _overlay = Image.new("RGBA", (W * SCALE, _MAX_H * SCALE), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
-    d = ImageDraw.Draw(canvas)
+    d = ScaledDraw(ImageDraw.Draw(canvas), SCALE)
 
     # 标题（半透明背景让 bg3 透出）
-    _title_overlay = Image.new("RGBA", (W, 170), (30, 32, 40, 180))
+    _title_overlay = Image.new("RGBA", (W * SCALE, 170 * SCALE), (30, 32, 40, 180))
     canvas.paste(_title_overlay, (0, 0), _title_overlay)
     d.rectangle([M, 168, M + 60, 170], fill=(80, 140, 210))
     d.text((M, 30), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
-    avatar = _load_avatar(60)
+    avatar = _load_avatar(60 * SCALE)
     if avatar:
         tw = int(F36.getlength("猫亭刮刮乐"))
-        canvas.paste(avatar, (M + tw + 14, 24), avatar)
+        canvas.paste(avatar, ((M + tw + 14) * SCALE, 24 * SCALE), avatar)
     d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(170, 178, 190), font=F16)
     d.text((M, 108), f"更新于 {last_updated} · 角色 {role_id}", fill=(130, 138, 150), font=F14)
     if total_cnt:
@@ -285,8 +336,8 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     d.text((M, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
     y += 36
 
-    canvas = canvas.crop((0, 0, W, y))
-    return await convert_img(canvas)
+    canvas = canvas.crop((0, 0, W * SCALE, y * SCALE))
+    return _to_image_bytes(canvas)
 
 
 # ── 今日统计图 ──
@@ -295,7 +346,7 @@ async def draw_scratch_today(user_id: str, bot_id: str) -> bytes | str:
     from ..utils.database import NTEKfCookie
     row = await NTEKfCookie.get_by_user(user_id, bot_id)
     if row is None or not row.cookie or not row.uid:
-        return "你还没有绑定刮刮乐 ck！请【私聊】添加刮刮乐ck"
+        return "你还没有绑定刮刮乐 ck！请【私聊】nte添加刮刮乐ck"
     from .scratch_service import fetch_today_data
     try:
         today = await fetch_today_data(row.cookie, row.uid)
@@ -321,20 +372,20 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
     award_items = sorted(award_cnt.items(), key=lambda x: -_aval(x[0]))[:6]
 
     _MAX_H = 3000
-    canvas = get_nte_bg(W_TODAY, _MAX_H, bg="bg3")
-    _overlay = Image.new("RGBA", (W_TODAY, _MAX_H), (20, 22, 28, 120))
+    canvas = get_nte_bg(W_TODAY * SCALE, _MAX_H * SCALE, bg="bg3")
+    _overlay = Image.new("RGBA", (W_TODAY * SCALE, _MAX_H * SCALE), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
-    d = ImageDraw.Draw(canvas)
+    d = ScaledDraw(ImageDraw.Draw(canvas), SCALE)
 
     # 标题（半透明背景让 bg3 透出）
-    _title_overlay = Image.new("RGBA", (W_TODAY, 160), (30, 32, 40, 180))
+    _title_overlay = Image.new("RGBA", (W_TODAY * SCALE, 160 * SCALE), (30, 32, 40, 180))
     canvas.paste(_title_overlay, (0, 0), _title_overlay)
     d.rectangle([M, 158, M + 60, 160], fill=(80, 140, 210))
     d.text((M, 28), "今日刮刮乐", fill=(255, 255, 255), font=F36)
-    avatar = _load_avatar(56)
+    avatar = _load_avatar(56 * SCALE)
     if avatar:
         tw = int(F36.getlength("今日刮刮乐"))
-        canvas.paste(avatar, (M + tw + 14, 24), avatar)
+        canvas.paste(avatar, ((M + tw + 14) * SCALE, 24 * SCALE), avatar)
     tt = M + tw + 80 if avatar else M + 220
     SD.rr(d, (tt, 34, tt + 80, 58), 12, (50, 54, 64))
     d.text((tt + 10, 37), today_str, fill=GOLD, font=F16)
@@ -408,8 +459,8 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
     d.text((M, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
     y += 36
 
-    canvas = canvas.crop((0, 0, W_TODAY, y))
-    return await convert_img(canvas)
+    canvas = canvas.crop((0, 0, W_TODAY * SCALE, y * SCALE))
+    return _to_image_bytes(canvas)
 
 
 # ── 排名图 ──
@@ -437,10 +488,10 @@ async def draw_scratch_rank() -> bytes | str:
         user_names[row.user_id] = name
         try:
             av = await get_qq_avatar(row.user_id)
-            av = av.resize((30, 30), Image.LANCZOS)
-            mask = Image.new("L", (30, 30), 0)
-            ImageDraw.Draw(mask).ellipse([0, 0, 30, 30], fill=255)
-            av_rgba = Image.new("RGBA", (30, 30), (0, 0, 0, 0))
+            av = av.resize((30 * SCALE, 30 * SCALE), Image.LANCZOS)
+            mask = Image.new("L", (30 * SCALE, 30 * SCALE), 0)
+            ImageDraw.Draw(mask).ellipse([0, 0, 30 * SCALE, 30 * SCALE], fill=255)
+            av_rgba = Image.new("RGBA", (30 * SCALE, 30 * SCALE), (0, 0, 0, 0))
             av_rgba.paste(av, (0, 0), mask)
             user_avatars[row.user_id] = av_rgba
         except Exception:
@@ -448,13 +499,13 @@ async def draw_scratch_rank() -> bytes | str:
 
     _MAX_H = 2000
     rank_w = 700
-    canvas = get_nte_bg(rank_w, _MAX_H, bg="bg3")
-    _overlay = Image.new("RGBA", (rank_w, _MAX_H), (20, 22, 28, 120))
+    canvas = get_nte_bg(rank_w * SCALE, _MAX_H * SCALE, bg="bg3")
+    _overlay = Image.new("RGBA", (rank_w * SCALE, _MAX_H * SCALE), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
-    d = ImageDraw.Draw(canvas)
+    d = ScaledDraw(ImageDraw.Draw(canvas), SCALE)
 
     # 标题
-    _title = Image.new("RGBA", (rank_w, 120), (30, 32, 40, 180))
+    _title = Image.new("RGBA", (rank_w * SCALE, 120 * SCALE), (30, 32, 40, 180))
     canvas.paste(_title, (0, 0), _title)
     d.rectangle([20, 118, 80, 120], fill=(80, 140, 210))
     d.text((20, 28), "刮刮乐排行", fill=(255, 255, 255), font=F36)
@@ -479,7 +530,7 @@ async def draw_scratch_rank() -> bytes | str:
         d.text((34, y + 8), str(idx + 1), fill=rank_clr, font=F18)
         av = user_avatars.get(row.user_id)
         if av:
-            canvas.paste(av, (66, y + 3), av)
+            canvas.paste(av, (66 * SCALE, (y + 3) * SCALE), av)
         disp = user_names.get(row.user_id, row.user_id)[:10]
         d.text((104, y + 8), disp, fill=TEXT, font=F14)
         cnt = row.total_spent // 10000 if row.total_spent else 0
@@ -497,5 +548,5 @@ async def draw_scratch_rank() -> bytes | str:
     d.text((20, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
     y += 36
 
-    canvas = canvas.crop((0, 0, rank_w, y))
-    return await convert_img(canvas)
+    canvas = canvas.crop((0, 0, rank_w * SCALE, y * SCALE))
+    return _to_image_bytes(canvas)

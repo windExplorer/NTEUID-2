@@ -1,10 +1,10 @@
 """猫亭刮刮乐 — 指令注册。
 
-指令列表：
-  添加刮刮乐ck <cookie>  — 私聊绑定 kf cookie，自动抓取数据
-  更新刮刮乐                 — 刷新刮刮乐数据
-  刮刮乐                     — 查看累计统计
-  今日刮刮乐                 — 查看今日刮刮乐数据
+指令列表（均带 nte 前缀）：
+  nte添加刮刮乐ck <cookie>  — 私聊绑定 kf cookie，自动抓取数据
+  nte更新刮刮乐                 — 刷新刮刮乐数据
+  nte刮刮乐                     — 查看累计统计
+  nte今日刮刮乐                 — 查看今日刮刮乐数据
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from .scratch_card import draw_scratch_stats, draw_scratch_today, draw_scratch_r
 sv_scratch_bind = SV("nte刮刮乐绑定")
 sv_scratch = SV("nte刮刮乐")
 
-COOKIE_HELP = "请私聊发送：添加刮刮乐ck oauth=xxx; ..."
+COOKIE_HELP = "请私聊发送：nte添加刮刮乐ck oauth=xxx; ..."
 
 _COOKIE_GUIDE_NODE = MessageSegment.node([
     MessageSegment.text(
@@ -37,7 +37,7 @@ _COOKIE_GUIDE_NODE = MessageSegment.node([
         "发送【nteck软件】下载 Cookie 提取工具\n"
         "安装后会自动打开登录页面\n"
         "登录完成后点右下角按钮即可复制完整 Cookie\n"
-        "再回来发送：添加刮刮乐ck <粘贴>"
+        "再回来发送：nte添加刮刮乐ck <粘贴>"
     ),
     MessageSegment.text(
         "方法二（安卓/IOS通用 · 手动下载）\n"
@@ -50,7 +50,7 @@ _COOKIE_GUIDE_NODE = MessageSegment.node([
         "1. 浏览器打开 https://kf.wanmei.com/selfItemFlowQuery?gameId=191\n"
         "2. 登录后在网页请求中找到任意一条请求\n"
         "3. 复制请求头中 Cookie 的完整值\n"
-        "4. 回来发送：添加刮刮乐ck <粘贴>"
+        "4. 回来发送：nte添加刮刮乐ck <粘贴>"
     ),
 ])
 
@@ -59,7 +59,7 @@ _COOKIE_GUIDE_NODE = MessageSegment.node([
 async def nte_scratch_bind(bot: Bot, ev: Event):
     cookie = ev.regex_dict["cookie"]
     if ev.group_id:
-        return await bot.send("⚠️ 添加刮刮乐 ck 涉及 cookie 隐私，请私聊机器人操作！")
+        return await bot.send("请私聊发送该指令~")
     msg = await bind_and_fetch(ev.user_id, ev.bot_id, cookie)
     await bot.send(msg)
 
@@ -68,7 +68,7 @@ async def nte_scratch_bind(bot: Bot, ev: Event):
 async def nte_scratch_bind_empty(bot: Bot, ev: Event):
     """只发了"添加刮刮乐ck"没带参数时显示合并转发帮助"""
     if ev.group_id:
-        return await bot.send("⚠️ 添加刮刮乐 ck 涉及 cookie 隐私，请私聊机器人操作！")
+        return await bot.send("请私聊发送该指令~")
     await bot.send([_COOKIE_GUIDE_NODE])
 
 

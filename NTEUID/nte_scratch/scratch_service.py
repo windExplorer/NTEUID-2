@@ -230,7 +230,7 @@ async def bind_and_fetch(user_id: str, bot_id: str, cookie: str) -> str:
     # 检查用户是否已登录
     user = await NTEUser.get_active(user_id, bot_id)
     if user is None:
-        return "你还没有登录异环账号哦！请先使用【登录】指令登录后再添加刮刮乐 ck。"
+        return "你还没有登录异环账号哦！请先使用【nte登录】指令登录后再【nte添加刮刮乐ck】。"
 
     role_id = user.uid
     if not role_id:
@@ -270,7 +270,7 @@ async def refresh_data(user_id: str, bot_id: str) -> str:
     """刷新刮刮乐数据。返回提示文案。"""
     row = await NTEKfCookie.get_by_user(user_id, bot_id)
     if row is None:
-        return "你还没有绑定刮刮乐 ck！请【私聊】机器人发送：添加刮刮乐ck oauth=xxx; ..."
+        return "你还没有绑定刮刮乐 ck！请【私聊】机器人发送：nte添加刮刮乐ck oauth=xxx; ..."
 
     if not row.cookie or not row.uid:
         return "刮刮乐数据不完整，请重新绑定 cookie。"
@@ -307,7 +307,7 @@ async def show_stats(user_id: str, bot_id: str) -> str:
     """返回刮刮乐统计文案。"""
     row = await NTEKfCookie.get_by_user(user_id, bot_id)
     if row is None or not row.raw_data or row.raw_data == "{}":
-        return "你还没有绑定刮刮乐 ck！请【私聊】机器人发送：添加刮刮乐ck oauth=xxx; ..."
+        return "你还没有绑定刮刮乐 ck！请【私聊】机器人发送：nte添加刮刮乐ck oauth=xxx; ..."
 
     s = json.loads(row.raw_data)
     agg = aggregate_records(s)
@@ -371,7 +371,7 @@ async def show_today(user_id: str, bot_id: str) -> str:
     """返回今日刮刮乐数据。"""
     row = await NTEKfCookie.get_by_user(user_id, bot_id)
     if row is None:
-        return "你还没有绑定刮刮乐 ck，请先【添加刮刮乐ck <cookie>】"
+        return "你还没有绑定刮刮乐 ck，请先【nte添加刮刮乐ck <cookie>】"
 
     if not row.cookie or not row.uid:
         return "刮刮乐数据不完整，请重新绑定 cookie。"
