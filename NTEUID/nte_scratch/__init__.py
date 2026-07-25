@@ -21,6 +21,7 @@ from .scratch_service import (
     delete_ck,
     auto_refresh_all,
 )
+from .scratch_card import draw_scratch_stats, draw_scratch_today
 
 sv_scratch_bind = SV("nte刮刮乐绑定")
 sv_scratch = SV("nte刮刮乐")
@@ -60,14 +61,20 @@ async def nte_scratch_refresh(bot: Bot, ev: Event):
 
 @sv_scratch.on_fullmatch(("刮刮乐统计", "刮刮乐图表", "刮刮乐"))
 async def nte_scratch_stats(bot: Bot, ev: Event):
-    msg = await show_stats(ev.user_id, ev.bot_id)
-    await bot.send(msg)
+    res = await draw_scratch_stats(ev.user_id, ev.bot_id)
+    if isinstance(res, str):
+        await bot.send(res)
+    else:
+        await bot.send(res)
 
 
 @sv_scratch.on_fullmatch(("今日刮刮乐", "今天刮刮乐"))
 async def nte_scratch_today(bot: Bot, ev: Event):
-    msg = await show_today(ev.user_id, ev.bot_id)
-    await bot.send(msg)
+    res = await draw_scratch_today(ev.user_id, ev.bot_id)
+    if isinstance(res, str):
+        await bot.send(res)
+    else:
+        await bot.send(res)
 
 
 @sv_scratch.on_fullmatch(("删除刮刮乐ck", "清除刮刮乐ck", "解绑刮刮乐"))
