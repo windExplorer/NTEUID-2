@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from gsuid_core.logger import logger
 from gsuid_core.utils.image.convert import convert_img
 
-from ..utils.image import get_nte_bg, draw_card
+from ..utils.image import get_nte_bg, draw_card, get_nte_title_bg
 from ..utils.fonts.nte_fonts import nte_font_origin as _f
 
 TZ_BJ = timezone(timedelta(hours=8))
@@ -155,21 +155,19 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     canvas = get_nte_bg(W, h, bg="bg3")
     d = ImageDraw.Draw(canvas)
 
-    # ── 标题 ──
+    # ── 标题（深色横幅，与角色面板一致）──
     title_h = 180
-    title_bg = Image.new("RGBA", (W, title_h), (250, 248, 242))
-    canvas.paste(title_bg, (0, 0), title_bg)
-    # 装饰线
-    d.rectangle([M, title_h - 2, M + 80, title_h], fill=TITLE_BG)
-    d.text((M, 36), "猫亭刮刮乐", fill=(50, 50, 60), font=F36)
+    title_img = get_nte_title_bg(W, title_h)
+    canvas.paste(title_img, (0, 0), title_img)
+    d.text((M, 36), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
     avatar = _load_avatar(64)
     if avatar:
         tw = int(F36.getlength("猫亭刮刮乐"))
         canvas.paste(avatar, (M + tw + 16, 28), avatar)
-    d.text((M, 86), "午夜猫刊亭刮刮乐数据统计", fill=MUTED, font=F16)
-    d.text((M, 114), f"更新于 {last_updated} · 角色 {role_id}", fill=DIM, font=F14)
+    d.text((M, 86), "午夜猫刊亭刮刮乐数据统计", fill=(200, 210, 220), font=F16)
+    d.text((M, 114), f"更新于 {last_updated} · 角色 {role_id}", fill=(170, 180, 190), font=F14)
     if total_cnt:
-        d.text((M, 140), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=DIM, font=F13)
+        d.text((M, 140), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=(170, 180, 190), font=F13)
 
     y = title_h + 20
 
@@ -326,21 +324,20 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
     canvas = get_nte_bg(W, h, bg="bg3")
     d = ImageDraw.Draw(canvas)
 
-    # ── 标题 ──
+    # ── 标题（深色横幅，与角色面板一致）──
     title_h = 160
-    title_bg = Image.new("RGBA", (W, title_h), (250, 248, 242))
-    canvas.paste(title_bg, (0, 0), title_bg)
-    d.rectangle([M, title_h - 2, M + 80, title_h], fill=TITLE_BG)
-    d.text((M, 30), "今日刮刮乐", fill=(50, 50, 60), font=F36)
+    title_img = get_nte_title_bg(W, title_h)
+    canvas.paste(title_img, (0, 0), title_img)
+    d.text((M, 30), "今日刮刮乐", fill=(255, 255, 255), font=F36)
     avatar = _load_avatar(60)
     if avatar:
         tw = int(F36.getlength("今日刮刮乐"))
         canvas.paste(avatar, (M + tw + 14, 26), avatar)
     _tt = M + tw + 80 if avatar else M + 220
-    d.rounded_rectangle([_tt, 34, _tt + 80, 58], 12, fill=(230, 228, 220))
+    d.rounded_rectangle([_tt, 34, _tt + 80, 58], 12, fill=(60, 70, 100))
     d.text((_tt + 10, 37), today_str, fill=GOLD, font=F16)
-    d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=MUTED, font=F16)
-    d.text((M, 108), f"今日刮了 {len(records)} 次", fill=DIM, font=F13)
+    d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(200, 210, 220), font=F16)
+    d.text((M, 108), f"今日刮了 {len(records)} 次", fill=(170, 180, 190), font=F13)
     y = title_h + 20
 
     # ── 三列卡片 ──
