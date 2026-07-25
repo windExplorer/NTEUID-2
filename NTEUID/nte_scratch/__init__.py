@@ -115,6 +115,9 @@ async def nte_scratch_apk(bot: Bot, ev: Event):
     apk_bytes = apks[0].read_bytes()
     b64 = base64.b64encode(apk_bytes).decode()
     await bot.send(Message(type="file", data=f"CK获取工具.apk|{b64}"))
+
+
+@sv_scratch.on_fullmatch(("删除刮刮乐ck", "清除刮刮乐ck", "解绑刮刮乐"))
 async def nte_scratch_delete(bot: Bot, ev: Event):
     msg = await delete_ck(ev.user_id, ev.bot_id)
     await bot.send(msg)
