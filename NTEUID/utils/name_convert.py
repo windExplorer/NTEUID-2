@@ -157,6 +157,42 @@ def name_by_id(entity_id: str) -> str:
     return entity_id
 
 
+_AVATAR_ALIASES = frozenset({"主角", "鉴定师", "异能者"})
+_AVATAR_MALE_ID = "1046"  # 异能者·零(男)
+_AVATAR_FEMALE_ID = "1051"  # 异能者·零(女)
+
+
+async def name_of_with_uid(query: str | None, uid: str) -> str | None:
+    """带用户上下文的角色别名解析。
+    “主角/鉴定师/异能者”会动态匹配用户实际拥有的男主(1046)或女主(1051)。
+    其他别名走 CHARS.name_of 的静态逻辑。
+    """
+    if not query:
+        return None
+
+    # 1) 先走静态别名
+    name = CHARS.name_of(query)
+    if name:
+        return name
+
+    # 2) 动态主角别名：检查用户拥有哪个
+    if query in _AVATAR_ALIASES and uid:
+        from .database import NTECharData
+
+        for avatar_id in (_AVATAR_MALE_ID, _AVATAR_FEMALE_ID):
+            if await NTECharData.detail_for_uid_char(uid, avatar_id) is not None:
+                return CHARS.name_by_id(avatar_id)
+    return None
+
+
+async def id_of_with_uid(query: str | None, uid: str) -> str | None:
+    """带用户上下文的 id 解析，同 name_of_with_uid。"""
+    name = await name_of_with_uid(query, uid)
+    if not name:
+        return None
+    return CHARS.id_of(name)
+
+
 def alias_to_entity(query: str | None) -> tuple[AliasRegistry, str, str] | None:
     """把用户输入解析成 (registry, 标准名, 实体 id)；角色优先，命中不到再找武器。
     都找不到返回 None，调用方自己出文案。"""

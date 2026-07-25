@@ -32,7 +32,7 @@ from ..utils.msgs.buttons import (
     role_home_buttons,
     refresh_changed_buttons,
 )
-from ..utils.name_convert import CHARS
+from ..utils.name_convert import CHARS, name_of_with_uid
 from ..utils.sdk.tajiduo_model import CharacterDetail
 
 
@@ -97,17 +97,19 @@ async def run_character_detail(bot: Bot, ev: Event, char_name: str, *, drive: bo
     if not char_name:
         return await send_nte_notify(bot, ev, CharacterMsg.usage_detail())
 
-    std_char_name = CHARS.name_of(char_name)
+    # 先取用户 uid，再带上下文解析别名（主角→检查用户用男主还是女主）
+    active = await _load_active_user(bot, ev)
+    if active is None:
+        return
+    user, target = active
+
+    std_char_name = await name_of_with_uid(char_name, user.uid)
     if not std_char_name:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
     char_id = CHARS.id_of(std_char_name)
     if not char_id:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
 
-    active = await _load_active_user(bot, ev)
-    if active is None:
-        return
-    user, target = active
     char = await load_character_detail_cache(user.uid, char_id)
     if char is None:
         if not await has_character_cache(user.uid):

@@ -12,13 +12,18 @@ from gsuid_core.utils.image.convert import convert_img
 
 from ..utils.msgs import GuideMsg, send_nte_notify
 from ..utils.msgs.buttons import guide_buttons
-from ..utils.name_convert import CHARS
+from ..utils.database import NTEUser
+from ..utils.name_convert import CHARS, name_of_with_uid
 from ..nte_config.nte_config import NTEConfig
 from ..utils.resource.RESOURCE_PATH import GUIDE_PATH
 
 
 async def get_guide(bot: Bot, ev: Event, char_name: str) -> None:
-    real_name = CHARS.name_of(char_name)
+    # 动态别名：用请求者的 game uid 解析主角/鉴定师/异能者
+    requester_uids = await NTEUser.uids_of_user(ev.user_id, ev.bot_id)
+    requester_uid = next(iter(requester_uids), "") if requester_uids else ""
+    resolved = await name_of_with_uid(char_name, requester_uid)
+    real_name = CHARS.name_of(resolved or char_name)
     if not real_name or not CHARS.id_of(real_name):
         return await send_nte_notify(bot, ev, GuideMsg.CHAR_NOT_FOUND.format(char_name=char_name))
 

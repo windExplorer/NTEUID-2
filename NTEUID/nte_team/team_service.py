@@ -7,7 +7,8 @@ from gsuid_core.models import Event
 from .team_card import draw_team_img
 from ..utils.msgs import TeamMsg, send_nte_notify
 from ..utils.sdk.tajiduo import tajiduo_web
-from ..utils.name_convert import CHARS
+from ..utils.database import NTEUser
+from ..utils.name_convert import CHARS, name_of_with_uid
 from ..utils.sdk.tajiduo_model import TajiduoError, TeamRecommendation
 
 
@@ -30,7 +31,11 @@ async def run_team(bot: Bot, ev: Event, char_name: str) -> None:
     if not char_name:
         return await send_nte_notify(bot, ev, TeamMsg.usage_detail())
 
-    std_char_name = CHARS.name_of(char_name)
+    # 动态别名：用请求者的 game uid 解析主角/鉴定师/异能者
+    requester_uids = await NTEUser.uids_of_user(ev.user_id, ev.bot_id)
+    requester_uid = next(iter(requester_uids), "") if requester_uids else ""
+    resolved = await name_of_with_uid(char_name, requester_uid)
+    std_char_name = CHARS.name_of(resolved or char_name)
     if not std_char_name:
         return await send_nte_notify(bot, ev, TeamMsg.CHAR_NOT_FOUND)
     char_id = CHARS.id_of(std_char_name)

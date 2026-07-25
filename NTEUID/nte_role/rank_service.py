@@ -12,7 +12,7 @@ from .panel_image import cache_original_image
 from ..utils.avatar import fetch_avatar
 from .character_card import draw_character_card_with_original
 from ..utils.database import NTEUser, NTECharData, NTEDriveCharData, NTEGroupMember
-from ..utils.name_convert import CHARS
+from ..utils.name_convert import CHARS, name_of_with_uid
 from .strongest_board_card import BoardEntry, draw_strongest_board_img
 from ..utils.sdk.tajiduo_model import CharacterDetail
 
@@ -33,6 +33,8 @@ async def _send_rank(
     """uids 给定 = 本群排名；为 None = bot排名。
     身份查询全部按集合大小封顶：本群直接用群表身份；全服只查"自己的 uid"(定位自己) +
     展示 ≤21 行的身份——绝不对全表 ranked 做 IN 反查（会撞 SQLite 变量上限且没必要）。
+
+    char_name 应由调用方提前用 name_of_with_uid 解析；静态别名作为兜底。
     """
     std_char_name = CHARS.name_of(char_name)
     char_id = CHARS.id_of(std_char_name) if std_char_name else None
@@ -89,8 +91,11 @@ async def run_character_rank(bot: Bot, ev: Event, char_name: str, *, drive: bool
     if not members:
         return await send_nte_notify(bot, ev, RankMsg.NO_MEMBER)
     identity = {m.uid: (m.user_id, m.role_name) for m in members}
+    # 动态别名：用请求者的 game uid 解析主角/鉴定师/异能者
+    requester_uid = next((uid for uid, (owner, _) in identity.items() if owner == ev.user_id), "")
+    resolved = await name_of_with_uid(char_name, requester_uid)
     await _send_rank(
-        bot, ev, char_name, scope_label="本群", uids=list(identity), group_identity=identity, drive=drive
+        bot, ev, resolved or char_name, scope_label="本群", uids=list(identity), group_identity=identity, drive=drive
     )
 
 
@@ -98,7 +103,11 @@ async def run_bot_rank(bot: Bot, ev: Event, char_name: str, *, drive: bool = Fal
     """bot评分排名：直接扫全表，不按群。drive=True 用异环工坊评分。"""
     if not char_name:
         return await send_nte_notify(bot, ev, RankMsg.usage_bot())
-    await _send_rank(bot, ev, char_name, scope_label="bot", uids=None, drive=drive)
+    # 动态别名：用请求者的 game uid 解析主角/鉴定师/异能者
+    requester_uids = await NTEUser.uids_of_user(ev.user_id, ev.bot_id)
+    requester_uid = next(iter(requester_uids), "") if requester_uids else ""
+    resolved = await name_of_with_uid(char_name, requester_uid)
+    await _send_rank(bot, ev, resolved or char_name, scope_label="bot", uids=None, drive=drive)
 
 
 async def _scope_member_uids(bot: Bot, ev: Event, bot_scope: bool) -> tuple[bool, list[str] | None]:
@@ -119,7 +128,11 @@ async def _scope_member_uids(bot: Bot, ev: Event, bot_scope: bool) -> tuple[bool
 
 async def run_strongest_panel(bot: Bot, ev: Event, char_name: str, *, bot_scope: bool, drive: bool = False) -> None:
     """某角色评分最强账号的面板：bot_scope=全服第一，否则本群第一。drive=True 用异环工坊评分。头像走 fetch_avatar，持有账号本人。"""
-    std_char_name = CHARS.name_of(char_name)
+    # 动态别名：用请求者的 game uid 解析主角/鉴定师/异能者
+    requester_uids = await NTEUser.uids_of_user(ev.user_id, ev.bot_id)
+    requester_uid = next(iter(requester_uids), "") if requester_uids else ""
+    resolved = await name_of_with_uid(char_name, requester_uid)
+    std_char_name = CHARS.name_of(resolved or char_name)
     char_id = CHARS.id_of(std_char_name) if std_char_name else None
     if not std_char_name or not char_id:
         return await send_nte_notify(bot, ev, CharacterMsg.NOT_FOUND)
