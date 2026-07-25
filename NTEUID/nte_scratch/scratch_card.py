@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 from gsuid_core.logger import logger
 
-from ..utils.fonts.nte_fonts import nte_font_origin as _f
+from ..utils.fonts.nte_fonts import nte_font_bold as _f
 
 _RES = Path(__file__).resolve().parent.parent / "resource"
 
