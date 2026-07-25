@@ -260,7 +260,7 @@ async def bind_and_fetch(user_id: str, bot_id: str, cookie: str) -> str:
     return (
         f"✅ 刮刮乐 cookie 绑定成功，数据已获取！\n"
         f"📊 累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入\n"
-        f"    盈亏：{s['total_profit']:+,,}    回报率：{s['total_return_rate']:.2f}%"
+        f"    盈亏：{s['total_profit']:+,}    回报率：{s['total_return_rate']:.2f}%"
         if s["total_return_rate"] is not None
         else f"✅ 刮刮乐 cookie 绑定成功，数据已获取！\n累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入"
     )
@@ -297,7 +297,7 @@ async def refresh_data(user_id: str, bot_id: str) -> str:
     return (
         f"✅ 刮刮乐数据已刷新！\n"
         f"📊 累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入\n"
-        f"    盈亏：{s['total_profit']:+,,}    回报率：{s['total_return_rate']:.2f}%"
+        f"    盈亏：{s['total_profit']:+,}    回报率：{s['total_return_rate']:.2f}%"
         if s["total_return_rate"] is not None
         else f"✅ 刮刮乐数据已刷新！\n累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入"
     )
@@ -315,7 +315,7 @@ async def show_stats(user_id: str, bot_id: str) -> str:
         "📊 刮刮乐累计统计",
         f"　总消费：{s['total_spent']:,} 方斯",
         f"　总收入：{s['total_income']:,} 方斯",
-        f"　总盈亏：{s['total_profit']:+,,} 方斯",
+        f"　总盈亏：{s['total_profit']:+,} 方斯",
     ]
     if s["total_return_rate"] is not None:
         lines.append(f"　回报率：{s['total_return_rate']:.2f}%")
@@ -359,7 +359,7 @@ async def show_today(user_id: str, bot_id: str) -> str:
         f"📅 今日刮刮乐 ({_fmt_date(datetime.now(TZ_BEIJING))})",
         f"　消费：{today['spent']:,} 方斯",
         f"　收入：{today['income']:,} 方斯",
-        f"　盈亏：{today['profit']:+,,} 方斯",
+        f"　盈亏：{today['profit']:+,} 方斯",
     ]
     if today["return_rate"] is not None:
         lines.append(f"　回报率：{today['return_rate']:.2f}%")
