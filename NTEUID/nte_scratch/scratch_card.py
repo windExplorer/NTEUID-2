@@ -148,6 +148,9 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     h = 240 + 268 + 30 + 84 * wk_rows + 60 + 34 * aw_rows + 60 + 34 * card_rows + 60 + 28 * detail_rows + 120
 
     canvas = get_nte_bg(W, h, bg="bg3")
+    # 叠加半透明暗色遮罩（仿帮助图风格）
+    _overlay = Image.new("RGBA", (W, h), (20, 22, 28, 200))
+    canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
     # ── 标题（深色横幅，与角色面板一致）──
@@ -317,6 +320,9 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
     h = 200 + 30 + min(len(award_items), 6) * 30 + 30 + len(records) * 30 + 60 + 60
 
     canvas = get_nte_bg(W, h, bg="bg3")
+    # 叠加半透明暗色遮罩（仿帮助图风格）
+    _overlay = Image.new("RGBA", (W, h), (20, 22, 28, 200))
+    canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
     # ── 标题（深色横幅，与角色面板一致）──
