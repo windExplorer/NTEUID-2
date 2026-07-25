@@ -83,6 +83,7 @@ async def nte_role_level(bot: Bot, ev: Event):
         "面板更新",
         "面板",
         "面版",
+        "面包",
     ),
     block=True,
 )

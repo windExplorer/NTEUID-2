@@ -53,7 +53,17 @@ class AliasRegistry:
             return
 
         user = self._load_user().root
-        meta = _MetaFile.model_validate_json(self._meta_path.read_text(encoding="utf-8")).root
+        raw = self._meta_path.read_text(encoding="utf-8")
+        meta = _MetaFile.model_validate_json(raw).root
+
+        # debug: 确认 "161" 是否在加载后的数据中
+        if self.kind == "char":
+            for eid, m in meta.items():
+                if "161" in m.aliases:
+                    logger.info(f"[NTEUID-debug] reload 发现 161 在 meta[{eid}]({m.name}) 的别名中")
+                    break
+            else:
+                logger.warning(f"[NTEUID-debug] reload 后 meta 中未找到 161！文件路径={self._meta_path}")
 
         id_to_name: dict[str, str] = {}
         name_to_aliases: dict[str, list[str]] = {}
@@ -171,9 +181,16 @@ async def name_of_with_uid(query: str | None, uid: str) -> str | None:
         return None
 
     # 1) 先走静态别名
-    name = CHARS.name_of(query)
-    if name:
-        return name
+    try:
+        _names = {n: a for n, a in CHARS._name_to_aliases.items() if "161" in a}
+        logger.info(f"[NTEUID-debug] 别名字典 in: {_names}")
+        name = CHARS.name_of(query)
+        logger.info(f"[NTEUID-debug] name_of('{query}') = {name!r}, _meta_path={CHARS._meta_path}")
+        if name:
+            return name
+    except Exception as e:
+        logger.exception(f"[NTEUID-debug] name_of 异常: {e}")
+        return None
 
     # 2) 动态主角别名：检查用户拥有哪个
     if query in _AVATAR_ALIASES and uid:

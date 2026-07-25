@@ -14,3 +14,9 @@ async def send_update_resource_msg(bot: Bot, ev: Event):
     result = await update_resources(is_force=True)
     reload_all()
     await bot.send(f"[异环] {result['message']}")
+
+
+@sv_nte_resource.on_fullmatch(("刷新别名缓存", "重载别名"))
+async def reload_alias_msg(bot: Bot, ev: Event):
+    reload_all()
+    await bot.send("[异环] 别名缓存已刷新")
