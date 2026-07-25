@@ -13,6 +13,17 @@ from PIL import Image, ImageDraw, ImageFont
 from gsuid_core.logger import logger
 
 TZ_BJ = timezone(timedelta(hours=8))
+_TEX = Path(__file__).resolve().parent.parent / "utils" / "texture2d"
+
+
+def _apply_bg(img: Image.Image, bg: str = "bg") -> Image.Image:
+    """叠加背景贴图。"""
+    try:
+        bg_img = Image.open(_TEX / f"{bg}.jpg").convert("RGBA").resize(img.size, Image.LANCZOS)
+        img = Image.alpha_composite(bg_img, img)
+    except Exception:
+        pass
+    return img
 
 # ── 字体 ──
 _FONT_CACHE: dict[int, ImageFont.FreeTypeFont] = {}
@@ -159,8 +170,8 @@ def _render_stats_image(summary: dict, last_updated: str, role_id: str) -> Image
     h = 340 + 268 + 30 + 84 * wk_rows + 60 + 34 * aw_rows + 60 + 34 * card_rows + 60 + 28 * detail_rows + 120
 
     img = Image.new("RGBA", (W, h), BG)
+    img = _apply_bg(img)
     d = ImageDraw.Draw(img)
-
     # ── 标题 ──
     d.rectangle([0, 0, W, 200], fill=(20, 20, 26))
     d.text((M, 50), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
@@ -315,8 +326,8 @@ def _render_today_image(today: dict, today_str: str) -> Image.Image:
     h = 240 + 30 + min(len(award_items), 6) * 30 + 30 + len(records) * 30 + 60 + 60
 
     img = Image.new("RGBA", (W - 100, h), BG)
+    img = _apply_bg(img)
     d = ImageDraw.Draw(img)
-
     # ── 标题 ──
     d.rectangle([0, 0, img.width, 170], fill=(20, 20, 26))
     d.text((M, 28), f"今日刮刮乐", fill=(255, 255, 255), font=F36)
