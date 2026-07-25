@@ -300,6 +300,7 @@ class CharacterSuit(_TajiduoModel):
     suit_condition: list[str] = Field(default_factory=list, alias="suitCondition")
     core: list[CharacterSuitItem] = Field(default_factory=list)
     pie: list[CharacterSuitItem] = Field(default_factory=list)
+    tape: list[CharacterSuitItem] = Field(default_factory=list, description="磁带（drive 评分的磁带分用）")
     suit_activate_num: int = Field(0, alias="suitActivateNum")
 
 

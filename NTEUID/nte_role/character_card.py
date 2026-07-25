@@ -451,6 +451,13 @@ def _damage_section_height(damage: CharacterDamage) -> int:
     return height
 
 
+_COARSE_SECTION_HEIGHT = 76 + 88  # 标题栏 + 乘区拆解条
+
+
+def _coarse_damage_section_height() -> int:
+    return _COARSE_SECTION_HEIGHT
+
+
 def _draw_damage(
     canvas: Image.Image,
     draw: ImageDraw.ImageDraw,
@@ -524,6 +531,58 @@ def _draw_damage(
         y += 12
 
 
+def _draw_coarse_damage(
+    canvas: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    top: int,
+    panel: dict[str, float],
+    accent: tuple[int, int, int],
+) -> None:
+    """drive 简化直伤展示（与毕业率同口径的粗直伤公式）。"""
+    from ..extra.drive.score_drive import _coarse_damage, _normalize_for_damage
+
+    drawer = SmoothDrawer()
+    x0, x1 = 20, 1080
+    norm = _normalize_for_damage(panel)
+    atk_base = norm.get("攻击力", 0)
+    atk_pct = norm.get("攻击力%", 0)
+    attack = atk_base * (1 + atk_pct / 100)
+    ability = norm.get("异能伤害%", 0)
+    bonus_inc = norm.get("伤害增加%", 0)
+    bonus = 1 + (ability + bonus_inc) / 100
+    cr = min(norm.get("暴击率%", 0), 100) / 100
+    cd = norm.get("暴击伤害%", 0) / 100
+    crit = 1 + cr * cd
+    dmg = _coarse_damage(panel)
+
+    # 标题栏
+    accent_dark = tuple(max(0, c - 40) for c in accent)
+    drawer.rounded_rectangle((x0, top, x1, top + 64), 16, fill=(*accent_dark, 180), target=canvas)
+    draw.text((x0 + 28, top + 32), "面板伤害指数", font=nte_font_origin(34), fill=COLOR_WHITE, anchor="lm")
+    draw.text(
+        (x1 - 24, top + 32),
+        "忽略怪物因素 · 纯面板输出估值",
+        font=nte_font_origin(20),
+        fill=COLOR_WHITE,
+        anchor="rm",
+    )
+
+    y = top + 76
+    drawer.rounded_rectangle((x0, y, x1, y + 88), 16, fill=(28, 32, 44, 210), target=canvas)
+    cells = (
+        ("攻击区", f"×{attack:.2f}", f"白值{atk_base:.0f} + {atk_pct:.1f}%"),
+        ("增伤区", f"×{bonus:.2f}", f"异能{ability:.1f}% + 增伤{bonus_inc:.1f}%"),
+        ("暴击区", f"×{crit:.2f}", f"暴{cr*100:.1f}% × 爆{cd*100:.1f}%"),
+        ("粗直伤", f"{dmg:,.0f}", "攻 × 增伤 × 暴击"),
+    )
+    cell_w = (x1 - x0) // len(cells)
+    for index, (label, value, sub) in enumerate(cells):
+        cx = x0 + cell_w * index + cell_w // 2
+        draw.text((cx, y + 20), label, font=nte_font_origin(22), fill=COLOR_SUBTEXT, anchor="mm")
+        draw.text((cx, y + 48), value, font=nte_font_origin(28), fill=COLOR_WHITE, anchor="mm")
+        draw.text((cx, y + 72), sub, font=nte_font_origin(18), fill=COLOR_SUBTEXT, anchor="mm")
+
+
 async def _draw_character_art(canvas: Image.Image, character_id: str) -> Path | None:
     custom_art = get_character_panel_img(character_id)
     if custom_art is not None:
@@ -547,11 +606,13 @@ async def draw_character_card_with_original(
     suit_items = [*character.suit.core, *character.suit.pie] if character.suit.id else []
     if score_mode == "异环工坊":
         # 异环工坊(drive) 模式：强制走独立 drive 后端与八档评级图标
-        from ..extra.drive.score_drive import score_character_drive
+        from ..extra.drive.score_drive import score_character_drive, _panel_to_canonical
 
         score = score_character_drive(character)
+        canon_panel = _panel_to_canonical(character)
     else:
         score = score_character(character)
+        canon_panel = None
     equipment_scores: tuple[EquipmentScore | None, ...] = (None,) * len(suit_items)
     if score is not None:
         equipment_scores = score.equipment
@@ -560,12 +621,15 @@ async def draw_character_card_with_original(
     gear_h = 272 if suit_items or character.fork.id else 0
     damage = _compute_damage(character)
     damage_h = _damage_section_height(damage) if damage is not None else 0
+    show_coarse = score_mode == "异环工坊" and canon_panel is not None
+    coarse_h = _COARSE_SECTION_HEIGHT if show_coarse else 0
     height = (
         BODY_TOP
         + 880
         + (GAP + gear_h if gear_h else 0)
         + (GAP + drive_h if drive_h else 0)
         + (GAP + damage_h if damage_h else 0)
+        + (GAP + coarse_h if coarse_h else 0)
         + 96
     )
 
@@ -625,6 +689,10 @@ async def draw_character_card_with_original(
     if damage is not None:
         damage_top = cursor + (drive_h + GAP if suit_items else 0)
         _draw_damage(canvas, draw, damage_top, damage, character.element_type.color)
+
+    if show_coarse:
+        coarse_top = cursor + (drive_h + GAP if suit_items else 0) + (damage_h + GAP if damage_h else 0)
+        _draw_coarse_damage(canvas, draw, coarse_top, canon_panel, accent=(80, 160, 200))
 
     add_footer(canvas)
     return await convert_img(canvas), original_img_path

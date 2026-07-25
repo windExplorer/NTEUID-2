@@ -112,7 +112,7 @@ async def _render_once(mode: str, suffix: str) -> None:
     out(f"=== 渲染评分卡片图片（{mode}）===")
     try:
         _card_img, _original_path = await draw_character_card_with_original(
-            char, role_name=char.name, uid=char.id, avatar=_avatar
+            char, role_name=char.name, uid=char.id, avatar=_avatar, score_mode=mode
         )
         _img_path = _RESULT_DIR / f"{char.id}_{char.name}_{suffix}.png"
         if isinstance(_card_img, Image.Image):

@@ -9,14 +9,18 @@
 - 新仓库的成色分需要每件装备的「品质(金/紫/蓝)」与「区格数(area)」，而本项目面板接口解析出的
   CharacterSuitItem 不含这两个字段。本模块在 CharacterSuitItem 上保留了可选的 `quality`/`area`
   字段（若接口返回则自动采用，否则默认 金 + 区格4），属兜底估算，后续接口补全后会自动更准。
+- 角色权重数据源已是 **SQLite**（`data/game_static.sqlite3`）：`character_weight_recommendation_property`
+  （含 `weight`/`main_weight`）、`logical_character_shape_bonus*`、`character_graduation_template`
+  （含 `benchmark_damage` 毕业基准）。不再读取旧的 `config/roles.json`。
 - 词条名体系不同（本项目用 gsuid id 如 `atkup`，新仓库用可读名如 `攻击力%`），通过
-  `_GSUID_TO_DRIVE` 桥接表归一。
+  `_GSUID_TO_DRIVE` 桥接表归一；数据库里的 PascalCase gsuid（如 `CritBase`）也经 `_gsuid_to_cn` 翻成中文。
 """
 
 from __future__ import annotations
 
 import json
 import math
+import sqlite3
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -27,22 +31,11 @@ from ...utils.sdk.tajiduo_model import (
     CharacterSuitItem,
 )
 
-# drive 配置目录：优先用项目内置附加目录 NTEUID/extra/drive/config（已随仓库分发，
-# 不依赖外部克隆仓库）；外部克隆仓库 NTE-Drive-Calculator/config 仅作兜底。
-def _resolve_drive_config_dir() -> Path:
-    here = Path(__file__).resolve()
-    bundled = here.parents[2] / "extra" / "drive" / "config"  # 内置附加配置
-    candidates = [
-        bundled,
-        here.parents[2] / "NTE-Drive-Calculator" / "config",  # 仓库根目录（兜底）
-    ]
-    for c in candidates:
-        if (c / "roles.json").exists():
-            return c
-    return candidates[0]
-
-
-_DRIVE_CONFIG_DIR = _resolve_drive_config_dir()
+# drive 附加目录：NTEUID/extra/drive（内置分发，不依赖外部克隆仓库）
+_DRIVE_ROOT = Path(__file__).resolve().parents[2] / "extra" / "drive"
+_DRIVE_CONFIG_DIR = _DRIVE_ROOT / "config"          # 仅 stats.json（词条目录/别名/主词条关键词）
+_DRIVE_DATA_DIR = _DRIVE_ROOT / "data"              # game_static.sqlite3（权重/形态/毕业基准）
+_DRIVE_DB_PATH = _DRIVE_DATA_DIR / "game_static.sqlite3"
 
 # 区格默认（驱动盘满级常见为 4）；品质默认金
 DEFAULT_AREA = 4
@@ -66,41 +59,78 @@ GRADE_LADDER = [
 FULL_DRIVE_AREA = 20  # 毕业基准用的满区
 
 # gsuid 词条 id -> 新仓库 canonical 名（与 stats.json / roles.json weights 对齐）
+# 覆盖两类来源：
+#   a) SDK 面板接口返回的原始词条 id（`crit`, `damageupchaos`, `mag` 等无后缀格式）
+#   b) 权重数据库 / 内部使用的 PascalCase gsuid（`CritBase`, `AtkUp` 等，统一 lower() 查表）
 _GSUID_TO_DRIVE: dict[str, str] = {
+    # ---- 面板基础属性 ----
+    "hpmax": "生命值",
     "atk": "攻击力",
+    "def": "防御力",
+    # ---- 攻击力 ----
     "atkup": "攻击力%",
     "atkadd": "攻击力",
     "atkbase": "攻击力",
+    # ---- 防御力 ----
     "defup": "防御力%",
     "defadd": "防御力",
     "defbase": "防御力",
+    # ---- 生命值 ----
     "hpmaxup": "生命值%",
     "hpmaxadd": "生命值",
     "hpmaxbase": "生命值",
+    # ---- 暴击 ----
+    "crit": "暴击率%",
     "critbase": "暴击率%",
     "critadd": "暴击率",
+    "critdamage": "暴击伤害%",
     "critdamagebase": "暴击伤害%",
     "critdamageadd": "暴击伤害",
+    # ---- 充能 ----
+    "chargegetefficiency": "充能效率%",
     "chargegetefficiencybase": "充能效率%",
+    # ---- 环合 / 倾陷 ----
+    "mag": "环合强度",
     "magbase": "环合强度",
     "magadd": "环合强度",
     "magup": "环合强度",
+    "unbalintensity": "倾陷强度",
     "unbalintensitybase": "倾陷强度",
     "unbalintensityadd": "倾陷强度",
     "unbalintensityup": "倾陷强度",
+    # ---- 治疗 / 防御穿透 ----
     "healup": "治疗加成%",
     "healbeup": "治疗加成%",
     "defignore": "无视防御%",
+    # ---- 伤害增加 ----
+    "damageupgeneral": "伤害增加%",
     "damageupgeneralbase": "伤害增加%",
     "damageupgeneraladd": "伤害增加%",
+    # ---- 分属性异能伤害增强 (SDK 简写 + 数据库 PascalCase base) ----
+    "damageupcosmos": "光属性异能伤害增强%",
     "damageupcosmosbase": "光属性异能伤害增强%",
+    "damageupnature": "灵属性异能伤害增强%",
     "damageupnaturebase": "灵属性异能伤害增强%",
+    "damageupincantation": "咒属性异能伤害增强%",
     "damageupincantationbase": "咒属性异能伤害增强%",
+    "damageupchaos": "暗属性异能伤害增强%",
     "damageupchaosbase": "暗属性异能伤害增强%",
+    "damageuppsyche": "魂属性异能伤害增强%",
     "damageuppsychebase": "魂属性异能伤害增强%",
+    "damageuplakshana": "相属性异能伤害增强%",
     "damageuplakshanabase": "相属性异能伤害增强%",
+    "damageuppsychically": "心灵伤害增强%",
     "damageuppsychicallybase": "心灵伤害增强%",
 }
+
+# 数据库 `character_weight_recommendation_property.property_id` 用 PascalCase gsuid
+# （如 CritBase / AtkUp），面板 `prop.id` 用小写 gsuid（critbase / atkup）。两者统一翻成
+# 中文 canonical 名，与 stats.json、`_weight_for` 对齐。
+_GSUID_TO_CN: dict[str, str] = {k.lower(): v for k, v in _GSUID_TO_DRIVE.items()}
+
+
+def _gsuid_to_cn(gsuid: str) -> str | None:
+    return _GSUID_TO_CN.get(str(gsuid).lower())
 
 # 角色面板里「总攻击」对应的 canonical 名（用于毕业率粗算）
 _CHAR_ATTACK_PROP = "atk"
@@ -158,20 +188,114 @@ class DriveCharacterScore:
 
 
 # --------------------------------------------------------------------------- #
-# 配置加载
+# 配置加载（数据源：game_static.sqlite3）
 # --------------------------------------------------------------------------- #
 @lru_cache(maxsize=1)
 def _load_drive_config() -> tuple[dict | None, dict | None]:
-    roles_path = _DRIVE_CONFIG_DIR / "roles.json"
-    stats_path = _DRIVE_CONFIG_DIR / "stats.json"
-    if not roles_path.exists() or not stats_path.exists():
+    """从 SQLite 装配 drive 评分配置，返回 `(role_by_id, stats)`。
+
+    `role_by_id` 以角色 id（字符串）为键，值为该角色的配置：
+    `{weights, main_weights, extra_shape_label, extra_shape_buffs, benchmark_damage}`。
+    权重来自 `character_weight_recommendation_property`（gsuid -> 中文 canonical 归一）；
+    形态加成来自 `logical_character_shape_bonus*`；毕业基准来自
+    `character_graduation_template.benchmark_damage`。
+    """
+    stats = _load_stats()
+    if stats is None:
         return None, None
+    if not _DRIVE_DB_PATH.exists():
+        return None, stats
+
     try:
-        roles = json.loads(roles_path.read_text(encoding="utf-8"))
-        stats = json.loads(stats_path.read_text(encoding="utf-8"))
+        con = sqlite3.connect(str(_DRIVE_DB_PATH))
+        con.row_factory = None
+        cur = con.cursor()
+
+        # 1) 角色权重（副词条 weights / 主词条 main_weights）
+        weights_by_char: dict[int, dict] = {}
+        cur.execute(
+            "SELECT character_id, property_id, weight, main_weight "
+            "FROM character_weight_recommendation_property"
+        )
+        for cid, pid, w, mw in cur.fetchall():
+            cn = _gsuid_to_cn(pid) or str(pid)
+            d = weights_by_char.setdefault(cid, {"weights": {}, "main_weights": {}})
+            if w:
+                d["weights"][cn] = float(w)
+            if mw:
+                d["main_weights"][cn] = float(mw)
+
+        # 2) 形态加成（extra_shape）
+        shape_by_char: dict[int, dict] = {}
+        cur.execute(
+            "SELECT representative_character_id, shape_label, shape_grid_count "
+            "FROM logical_character_shape_bonus"
+        )
+        for cid, label, grid in cur.fetchall():
+            shape_by_char.setdefault(cid, {})["label"] = label
+            shape_by_char[cid]["grid"] = grid
+        cur.execute(
+            "SELECT logical_character_key, property_id, display_value "
+            "FROM logical_character_shape_bonus_property"
+        )
+        for key, pid, val in cur.fetchall():
+            try:
+                cid = int(str(key).split(":")[-1])
+            except (ValueError, TypeError):
+                continue
+            cn = _gsuid_to_cn(pid) or str(pid)
+            shape_by_char.setdefault(cid, {}).setdefault("buffs", {})[cn] = float(val)
+
+        # 3) 毕业基准（官方默认板直伤）
+        bench_by_char: dict[int, float] = {}
+        cur.execute(
+            "SELECT character_id, benchmark_damage "
+            "FROM character_graduation_template WHERE source_kind='official_default'"
+        )
+        for cid, bench in cur.fetchall():
+            if bench is not None:
+                bench_by_char[cid] = float(bench)
+        con.close()
+    except sqlite3.Error:
+        return None, stats
+
+    # 装配：角色 id -> 配置
+    role_by_id: dict[str, dict] = {}
+    all_cids = set(weights_by_char) | set(bench_by_char) | set(shape_by_char)
+    for cid in all_cids:
+        w = weights_by_char.get(cid, {})
+        sh = shape_by_char.get(cid, {})
+        role_by_id[str(cid)] = {
+            "weights": w.get("weights", {}),
+            "main_weights": w.get("main_weights", {}),
+            "extra_shape_label": sh.get("label"),
+            "extra_shape_buffs": sh.get("buffs", {}),
+            "benchmark_damage": bench_by_char.get(cid),
+        }
+    return role_by_id, stats
+
+
+def _load_stats() -> dict | None:
+    """词条目录 / 别名 / 主词条关键词等仍来自 stats.json。"""
+    stats_path = _DRIVE_CONFIG_DIR / "stats.json"
+    if not stats_path.exists():
+        return None
+    try:
+        return json.loads(stats_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return None, None
-    return roles, stats
+        return None
+
+
+@lru_cache(maxsize=1)
+def _load_roles_json() -> dict | None:
+    """兜底：从 roles.json 按角色显示名查找方案（数据源 SQLite 未覆盖时）。"""
+    roles_path = _DRIVE_CONFIG_DIR / "roles.json"
+    if not roles_path.exists():
+        return None
+    try:
+        return json.loads(roles_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -294,7 +418,12 @@ def _coarse_damage(stats: dict[str, float]) -> float:
     atk_base = stats.get("攻击力", 0.0)
     atk_pct = stats.get("攻击力%", 0.0)
     attack = atk_base * (1 + atk_pct / 100.0)
+    # 增伤区：聚合所有分属性异能伤害增强%（灵/咒/暗/魂/相/光/心灵）与已归一化的 异能伤害%。
+    # 面板 canonical 用的是分属性名（如「灵属性异能伤害增强%」），需在此汇总，否则会漏算增伤区。
     ability = stats.get("异能伤害%", 0.0)
+    for key, val in stats.items():
+        if key.endswith("异能伤害增强%"):
+            ability += val
     bonus_inc = stats.get("伤害增加%", 0.0)
     bonus = 1 + (ability + bonus_inc) / 100.0
     crit_rate = min(stats.get("暴击率%", 0.0), 100.0) / 100.0
@@ -315,28 +444,92 @@ def _panel_to_canonical(character: CharacterDetail) -> dict[str, float]:
     return out
 
 
+def _normalize_for_damage(stats: dict[str, float]) -> dict[str, float]:
+    """聚合分属性异能伤害增强% 为 异能伤害%，得到粗直伤模型所需的归一化属性集。"""
+    out: dict[str, float] = {}
+    for k, v in stats.items():
+        if k.endswith("异能伤害增强%"):
+            out["异能伤害%"] = out.get("异能伤害%", 0.0) + v
+        else:
+            out[k] = out.get(k, 0.0) + v
+    return out
+
+
+# 单位边际收益默认步长（来自评分算法文档；百分比属性单位=百分点）
+_DAMAGE_STEP: dict[str, float] = {
+    "攻击力": 1.0,
+    "攻击力%": 1.25,
+    "异能伤害%": 1.25,
+    "伤害增加%": 1.0,
+    "暴击率%": 1.0,
+    "暴击伤害%": 2.0,
+}
+
+
+def calc_direct_marginal_benefits(
+    stats: dict[str, float],
+    benefit_one: dict[str, float] | None = None,
+    crit_rate_cap: float = 1.0,
+) -> tuple[float, list[tuple[str, float, float, float]]]:
+    """直伤评分模型的单位边际收益。
+
+    对每个属性单独 +1 单位（默认步长见 `_DAMAGE_STEP`）后重算粗直伤，得到该项带来的相对提升：
+       边际收益% = (新直伤 / 基准直伤 − 1) × 100
+    返回 `(基准直伤, 已按收益降序排列的 [(属性名, 当前值, 单位, 收益%)])`。
+    """
+    base = _normalize_for_damage(stats)
+    base_dmg = _coarse_damage(base)
+    steps = benefit_one or _DAMAGE_STEP
+    results: list[tuple[str, float, float, float]] = []
+    for name, unit in steps.items():
+        perturbed = dict(base)
+        perturbed[name] = base.get(name, 0.0) + unit
+        new_dmg = _coarse_damage_base(perturbed, crit_rate_cap)
+        benefit = (new_dmg / base_dmg - 1.0) * 100.0 if base_dmg > 0 else 0.0
+        results.append((name, base.get(name, 0.0), unit, benefit))
+    results.sort(key=lambda x: -x[3])
+    return base_dmg, results
+
+
+def _coarse_damage_base(stats: dict[str, float], crit_rate_cap: float = 1.0) -> float:
+    """与 `_coarse_damage` 相同，但暴击率封顶可配（边际收益扰动时用）。"""
+    atk_base = stats.get("攻击力", 0.0)
+    atk_pct = stats.get("攻击力%", 0.0)
+    attack = atk_base * (1 + atk_pct / 100.0)
+    ability = stats.get("异能伤害%", 0.0)
+    for key, val in stats.items():
+        if key.endswith("异能伤害增强%"):
+            ability += val
+    bonus = 1 + (ability + stats.get("伤害增加%", 0.0)) / 100.0
+    crit_rate = min(stats.get("暴击率%", 0.0), crit_rate_cap * 100.0) / 100.0
+    crit_dmg = stats.get("暴击伤害%", 0.0) / 100.0
+    return attack * bonus * (1 + crit_rate * crit_dmg)
+
+
 def _graduation_rate(
     character: CharacterDetail,
     role_cfg: dict,
     stats: dict,
     alias_map: dict[str, str],
 ) -> float:
-    weights = role_cfg.get("weights", {})
-    gold_base = stats.get("gold_base_values", {})
-    main_only = stats.get("main_only_keywords", [])
-
     player = _panel_to_canonical(character)
     player_dmg = _coarse_damage(player)
 
-    # 理想板：玩家属性 + 满配金盘顶 4 权重词条 × 满区
+    # 优先用数据库里的官方毕业基准（character_graduation_template.benchmark_damage）
+    bench = role_cfg.get("benchmark_damage")
+    if bench:
+        return (player_dmg / float(bench)) if bench > 0 else 0.0
+
+    # 兜底：无基准时用「玩家属性 + 满配金盘顶 4 权重词条 × 满区」构造理想板
+    weights = role_cfg.get("weights", {})
+    gold_base = stats.get("gold_base_values", {})
+    main_only = stats.get("main_only_keywords", [])
     top4 = _top_weighted_gold(gold_base, weights, alias_map, 4)
     ideal = dict(player)
     for st in top4:
         ideal[st] = ideal.get(st, 0.0) + gold_base.get(st, 0.0) * FULL_DRIVE_AREA
-    # 形态额外加成（默认按 1 个计入，近似）
     for st, val in role_cfg.get("extra_shape_buffs", {}).items():
         ideal[st] = ideal.get(st, 0.0) + val
-
     bench_dmg = _coarse_damage(ideal)
     return (player_dmg / bench_dmg) if bench_dmg > 0 else 0.0
 
@@ -346,11 +539,13 @@ def _graduation_rate(
 # --------------------------------------------------------------------------- #
 def score_character_drive(character: CharacterDetail) -> DriveCharacterScore | None:
     """drive 后端评分：返回单件成色分（含八档评级）与整角色毕业率。无方案时返回 None。"""
-    roles, stats = _load_drive_config()
-    if roles is None or stats is None:
+    role_by_id, stats = _load_drive_config()
+    if stats is None or role_by_id is None:
         return None
+    roles = _load_roles_json()
 
-    role_cfg = roles.get(character.name) or roles.get(character.id)
+    # 优先按角色 id 对齐；显示名仅作兜底（部分数据源缺 id 时）。
+    role_cfg = role_by_id.get(str(character.id)) or (roles or {}).get(character.name)
     if role_cfg is None:
         return None
 
