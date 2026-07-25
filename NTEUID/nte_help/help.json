@@ -510,6 +510,43 @@
             }
         ]
     },
+    "猫亭刮刮乐": {
+        "desc": "午夜猫刊亭刮刮乐数据统计",
+        "data": [
+            {
+                "name": "添加刮刮乐cookie",
+                "desc": "绑定 kf.wanmei.com cookie；需先登录异环账号",
+                "eg": "添加刮刮乐cookie oauth=xxx; ...",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "更新刮刮乐",
+                "desc": "重新抓取并更新刮刮乐统计数据",
+                "eg": "更新刮刮乐",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "刮刮乐统计",
+                "desc": "总消费/收入/盈亏/回报率 + 奖励分布",
+                "eg": "刮刮乐统计",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
+                "name": "今日刮刮乐",
+                "desc": "今日刮刮乐消费/收入 + 明细",
+                "eg": "今日刮刮乐",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            }
+        ]
+    },
     "主人功能": {
         "desc": "需要 bot 主人权限",
         "pm": 1,
