@@ -544,6 +544,14 @@
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
+            },
+            {
+                "name": "删除刮刮乐ck",
+                "desc": "解绑刮刮乐 ck，清除绑定的数据",
+                "eg": "删除刮刮乐ck",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
             }
         ]
     },

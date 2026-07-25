@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from gsuid_core.sv import SV
+from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
 
@@ -17,6 +18,8 @@ from .scratch_service import (
     refresh_data,
     show_stats,
     show_today,
+    delete_ck,
+    auto_refresh_all,
 )
 
 sv_scratch_bind = SV("nte刮刮乐绑定")
@@ -65,3 +68,15 @@ async def nte_scratch_stats(bot: Bot, ev: Event):
 async def nte_scratch_today(bot: Bot, ev: Event):
     msg = await show_today(ev.user_id, ev.bot_id)
     await bot.send(msg)
+
+
+@sv_scratch.on_fullmatch(("删除刮刮乐ck", "清除刮刮乐ck", "解绑刮刮乐"))
+async def nte_scratch_delete(bot: Bot, ev: Event):
+    msg = await delete_ck(ev.user_id, ev.bot_id)
+    await bot.send(msg)
+
+
+@scheduler.scheduled_job("cron", hour=6, minute=0, id="nte_scratch_auto_refresh")
+async def nte_scratch_auto_refresh():
+    """每日 6:00 自动刷新所有用户的刮刮乐数据。"""
+    await auto_refresh_all()

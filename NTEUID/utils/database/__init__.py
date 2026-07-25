@@ -1171,6 +1171,29 @@ class NTEKfCookie(BaseIDModel, table=True):
         await session.flush()
         return row
 
+    @classmethod
+    @with_session
+    async def delete_by_user(
+        cls: type[T_NTEKfCookie],
+        session: AsyncSession,
+        user_id: str,
+        bot_id: str,
+    ) -> bool:
+        row = await cls.get_by_user(user_id, bot_id)
+        if row is None:
+            return False
+        await session.delete(row)
+        return True
+
+    @classmethod
+    @with_session
+    async def list_all(
+        cls: type[T_NTEKfCookie],
+        session: AsyncSession,
+    ) -> list[T_NTEKfCookie]:
+        result = await session.execute(select(cls))
+        return list(result.scalars().all())
+
 
 @site.register_admin
 class NTEUserAdmin(GsAdminModel):

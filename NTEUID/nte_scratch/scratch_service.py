@@ -331,6 +331,42 @@ async def show_stats(user_id: str, bot_id: str) -> str:
     return "\n".join(lines)
 
 
+async def delete_ck(user_id: str, bot_id: str) -> str:
+    """删除绑定的刮刮乐 ck。"""
+    ok = await NTEKfCookie.delete_by_user(user_id, bot_id)
+    if ok:
+        return "✅ 已删除刮刮乐 ck 及绑定的数据。"
+    return "你还没有绑定刮刮乐 ck。"
+
+
+async def auto_refresh_all() -> str:
+    """定时任务：自动刷新所有已绑定用户的刮刮乐数据。"""
+    rows = await NTEKfCookie.list_all()
+    if not rows:
+        return "暂无已绑定的刮刮乐 ck。"
+    count = 0
+    for row in rows:
+        try:
+            summary = await fetch_scratch_data(row.cookie, row.uid)
+        except Exception:
+            continue
+        s = summary
+        await NTEKfCookie.upsert(
+            row.user_id, row.bot_id,
+            cookie=row.cookie,
+            uid=row.uid,
+            total_spent=s["total_spent"],
+            total_income=s["total_income"],
+            profit=s["total_profit"],
+            return_rate=s["total_return_rate"],
+            raw_data=json.dumps(s, ensure_ascii=False),
+            slice_count=s["slice_count"],
+            last_updated=_fmt(datetime.now(TZ_BEIJING)),
+        )
+        count += 1
+    return f"✅ 刮刮乐自动更新完成，共刷新 {count} 人。"
+
+
 async def show_today(user_id: str, bot_id: str) -> str:
     """返回今日刮刮乐数据。"""
     row = await NTEKfCookie.get_by_user(user_id, bot_id)
