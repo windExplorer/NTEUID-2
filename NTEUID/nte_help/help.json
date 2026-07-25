@@ -546,6 +546,14 @@
                 "need_admin": false
             },
             {
+                "name": "ck软件",
+                "desc": "下载 Cookie 提取工具 APK",
+                "eg": "ck软件",
+                "need_ck": false,
+                "need_sk": false,
+                "need_admin": false
+            },
+            {
                 "name": "刮刮乐打榜",
                 "desc": "全服刮刮乐总盈亏排名 TOP10",
                 "eg": "刮刮乐打榜",
