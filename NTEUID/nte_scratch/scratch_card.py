@@ -14,30 +14,25 @@ from ..utils.image import get_nte_bg, draw_card, get_nte_title_bg
 from ..utils.fonts.nte_fonts import nte_font_origin as _f
 
 TZ_BJ = timezone(timedelta(hours=8))
-W = 1100
-M = 28
-
+W = 860
+M = 24
 
 def _fload(size: int) -> ImageFont.FreeTypeFont:
     return _f(size)
-
 F13 = _fload(13); F14 = _fload(14); F15 = _fload(15); F16 = _fload(16)
 F18 = _fload(18); F20 = _fload(20); F24 = _fload(24); F28 = _fload(28)
 F30 = _fload(30); F36 = _fload(36)
 
-
-BG = (245, 242, 234)
-CARD = (255, 253, 248)
-CARD_ALT = (248, 246, 240)
-TEXT = (60, 60, 70)
-MUTED = (140, 140, 150)
-DIM = (170, 170, 180)
-GOLD = (200, 150, 60)
-GREEN = (40, 160, 90)
-RED = (220, 60, 60)
-PURPLE = (150, 100, 200)
-YELLOW_BRIGHT = (220, 170, 40)
-TITLE_BG = (40, 80, 120)
+CARD = (45, 48, 56)
+CARD_ALT = (52, 55, 63)
+TEXT = (230, 232, 236)
+MUTED = (160, 165, 175)
+DIM = (120, 125, 135)
+GOLD = (255, 190, 50)
+GREEN = (60, 200, 110)
+RED = (240, 80, 80)
+PURPLE = (180, 130, 255)
+YELLOW_BRIGHT = (255, 200, 60)
 
 
 class SD:
@@ -63,7 +58,7 @@ def _aval(aw):
     return int(m.group(1)) if m else 0
 
 def _line(d, y):
-    d.rectangle([M, y, W - M, y + 1], fill=(220, 218, 210))
+    d.rectangle([M, y, W - M, y + 1], fill=(60, 63, 70))
 
 def _load_avatar(size=64):
     res_dir = Path(__file__).resolve().parent.parent / "resource"
@@ -218,7 +213,7 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     y += 32
     _line(d, y)
     y += 8
-    SD.rr(d, (M, y, W - M, y + 30), 8, (220, 218, 210))
+    SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 20, y + 6), "奖励", fill=TEXT, font=F14)
     d.text((M + 280, y + 6), "次数", fill=TEXT, font=F14)
     d.text((M + 360, y + 6), "总计金额", fill=TEXT, font=F14)
@@ -245,7 +240,7 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     y += 32
     _line(d, y)
     y += 8
-    SD.rr(d, (M, y, W - M, y + 30), 8, (220, 218, 210))
+    SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 20, y + 6), "刮刮卡", fill=TEXT, font=F14)
     d.text((M + 200, y + 6), "次数", fill=TEXT, font=F14)
     d.text((M + 280, y + 6), "中奖次数", fill=TEXT, font=F14)
@@ -353,13 +348,13 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
         d.text((cx, y + 10), lb, fill=MUTED, font=F14, anchor="mt")
         d.text((cx, y + 34), val, fill=clr, font=F28, anchor="mt")
         d.text((cx, y + 60), unit, fill=DIM, font=F12, anchor="mt")
-    SD.rr(d, (M, y + 84, 200, y + 84 + 34), 10, (230, 228, 220))
+    SD.rr(d, (M, y + 84, 200, y + 84 + 34), 10, (55, 58, 66))
     d.text((M + 12, y + 89), f"回报率 {rate:.2f}%" if rate else "回报率 N/A", fill=GOLD, font=F16)
     y += 138
 
     # ── 奖励分布 ──
     if award_items:
-        SD.rr(d, (M, y, W - M, y + 30), 8, (220, 218, 210))
+        SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
         d.text((M + 14, y + 6), "奖励", fill=TEXT, font=F14)
         d.text((M + 200, y + 6), "次数", fill=TEXT, font=F14)
         d.text((M + 280, y + 6), "金额", fill=TEXT, font=F14)
@@ -381,7 +376,7 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
         y += 6
 
     # ── 今日记录 ──
-    SD.rr(d, (M, y, W - M, y + 30), 8, (220, 218, 210))
+    SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 14, y + 6), "时间", fill=TEXT, font=F14)
     d.text((M + 200, y + 6), "奖励", fill=TEXT, font=F14)
     y += 34
