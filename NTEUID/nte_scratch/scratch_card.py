@@ -14,8 +14,8 @@ from ..utils.image import get_nte_bg, draw_card
 from ..utils.fonts.nte_fonts import nte_font_origin as _f
 
 TZ_BJ = timezone(timedelta(hours=8))
-W = 860
-M = 24
+W = 760
+M = 22
 
 def _fload(size: int) -> ImageFont.FreeTypeFont:
     return _f(size)
