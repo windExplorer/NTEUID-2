@@ -23,15 +23,15 @@ sv_scratch_bind = SV("nte刮刮乐绑定", area="DIRECT")
 sv_scratch = SV("nte刮刮乐")
 
 COOKIE_HELP = (
-    "💡 如何获取刮刮乐 cookie？\n"
+    "💡 如何获取刮刮乐 ck？\n"
     "1. 浏览器打开 https://kf.wanmei.com/selfItemFlowQuery?gameId=191\n"
     "2. F12 → 网络 → 刷新页面 → 找到任意请求\n"
     "3. 复制请求头中的 Cookie 值（完整的一段）\n"
-    "4. 私聊机器人发送：添加刮刮乐cookie <粘贴的cookie>"
+    "4. 私聊机器人发送：添加刮刮乐ck oauth=xxx; ..."
 )
 
 
-@sv_scratch_bind.on_prefix(("添加刮刮乐cookie", "绑定刮刮乐cookie"))
+@sv_scratch_bind.on_prefix(("添加刮刮乐ck"))
 async def nte_scratch_bind(bot: Bot, ev: Event):
     cookie = ev.text.strip()
     if not cookie:
@@ -49,7 +49,7 @@ async def nte_scratch_refresh(bot: Bot, ev: Event):
     await bot.send(msg)
 
 
-@sv_scratch.on_fullmatch(("刮刮乐统计", "刮刮乐图表"))
+@sv_scratch.on_fullmatch(("刮刮乐统计", "刮刮乐图表", "刮刮乐"))
 async def nte_scratch_stats(bot: Bot, ev: Event):
     msg = await show_stats(ev.user_id, ev.bot_id)
     await bot.send(msg)
