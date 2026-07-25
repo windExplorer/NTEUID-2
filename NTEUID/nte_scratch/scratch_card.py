@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from gsuid_core.logger import logger
 from gsuid_core.utils.image.convert import convert_img
 
-from ..utils.image import get_nte_bg, draw_card, get_nte_title_bg
+from ..utils.image import get_nte_bg, draw_card
 from ..utils.fonts.nte_fonts import nte_font_origin as _f
 
 TZ_BJ = timezone(timedelta(hours=8))
@@ -153,19 +153,17 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
-    # ── 标题（深色横幅，与角色面板一致）──
-    title_h = 180
-    title_img = get_nte_title_bg(W, title_h)
-    canvas.paste(title_img, (0, 0), title_img)
-    d.text((M, 36), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
-    avatar = _load_avatar(64)
+    # ── 标题 ──
+    d.rectangle([0, 0, W, 170], fill=(30, 32, 40))
+    d.text((M, 30), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
+    avatar = _load_avatar(60)
     if avatar:
         tw = int(F36.getlength("猫亭刮刮乐"))
-        canvas.paste(avatar, (M + tw + 16, 28), avatar)
-    d.text((M, 86), "午夜猫刊亭刮刮乐数据统计", fill=(200, 210, 220), font=F16)
-    d.text((M, 114), f"更新于 {last_updated} · 角色 {role_id}", fill=(170, 180, 190), font=F14)
+        canvas.paste(avatar, (M + tw + 14, 24), avatar)
+    d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(170, 178, 190), font=F16)
+    d.text((M, 108), f"更新于 {last_updated} · 角色 {role_id}", fill=(130, 138, 150), font=F14)
     if total_cnt:
-        d.text((M, 140), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=(170, 180, 190), font=F13)
+        d.text((M, 135), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=(130, 138, 150), font=F13)
 
     y = title_h + 20
 
@@ -282,7 +280,7 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     if len(records_sorted) > 15:
         d.text((M + 14, y + 3), f"... 共 {len(records_sorted)} 条记录", fill=MUTED, font=F13)
 
-    canvas = canvas.crop((0, 0, W, max(y + 10, title_h)))
+    canvas = canvas.crop((0, 0, W, y + 40))
     return await convert_img(canvas)
 
 
