@@ -189,10 +189,10 @@ async def fetch_scratch_data(cookie: str, role_id: str) -> dict[str, Any]:
 
 
 async def fetch_today_data(cookie: str, role_id: str) -> dict[str, Any] | None:
-    """抓取当日刮刮乐数据。"""
+    """抓取当日刮刮乐数据（结束时间用当前时间，API 不允许查询未来）。"""
     today = datetime.now(TZ_BEIJING)
     start = today.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = today.replace(hour=23, minute=59, second=59)
+    end = today  # 当前时间，API 要求结束时间必须早于当前时间
     async with httpx.AsyncClient(verify=False) as client:
         rec = await _fetch_slice(client, cookie, role_id, start, end)
     if rec["spent"] == 0 and rec["income"] == 0:
