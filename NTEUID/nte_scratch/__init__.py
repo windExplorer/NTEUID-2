@@ -37,8 +37,14 @@ async def nte_scratch_bind(bot: Bot, ev: Event):
     cookie = ev.regex_dict["cookie"]
     if ev.group_id:
         return await bot.send("⚠️ 添加刮刮乐 ck 涉及 cookie 隐私，请私聊机器人操作！")
-    msg = await bind_and_fetch(ev.user_id, ev.bot_id, cookie)
-    await bot.send(msg)
+    try:
+        msg = await bind_and_fetch(ev.user_id, ev.bot_id, cookie)
+        await bot.send(msg)
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        await bot.send(f"❌ 刮刮乐绑定失败：{e}\n\n{err[:500]}")
+        raise
 
 
 @sv_scratch_bind.on_fullmatch(("添加刮刮乐ck"), block=True)

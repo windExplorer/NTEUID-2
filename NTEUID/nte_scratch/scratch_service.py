@@ -47,6 +47,17 @@ def _fmt_date(d: datetime) -> str:
 # ── 网络请求 ──
 
 
+def _parse_cookie(cookie: str) -> dict[str, str]:
+    """将 cookie 字符串解析为 {key: value} 字典。"""
+    result: dict[str, str] = {}
+    for item in cookie.split(";"):
+        item = item.strip()
+        if "=" in item:
+            k, v = item.split("=", 1)
+            result[k.strip()] = v.strip()
+    return result
+
+
 async def _post_search(
     client: httpx.AsyncClient, cookie: str, role_id: str, start: datetime, end: datetime, page: int = 1
 ) -> dict[str, Any]:
@@ -69,7 +80,11 @@ async def _post_search(
         "pageNo": str(page),
         "pageSize": str(PAGE_SIZE),
     }
-    resp = await client.post(URL_SEARCH, data=params, headers={**HEADERS, "Cookie": cookie}, timeout=30)
+    # 逐个设置 cookie 避免 httpx 解析长 cookie 字符串出问题
+    cookie_dict = _parse_cookie(cookie)
+    resp = await client.post(
+        URL_SEARCH, data=params, headers=HEADERS, cookies=cookie_dict, timeout=30
+    )
     text = resp.text.replace("<pre>", "").replace("</pre>", "").strip()
     payload = json.loads(text)
     code = str(payload.get("code"))
