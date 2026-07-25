@@ -12,6 +12,7 @@ from gsuid_core.sv import SV
 from gsuid_core.aps import scheduler
 from gsuid_core.bot import Bot
 from gsuid_core.models import Event
+from gsuid_core.segment import MessageSegment
 
 from .scratch_service import (
     bind_and_fetch,
@@ -65,7 +66,7 @@ async def nte_scratch_stats(bot: Bot, ev: Event):
     if isinstance(res, str):
         await bot.send(res)
     else:
-        await bot.send(res)
+        await bot.send(MessageSegment.image(res))
 
 
 @sv_scratch.on_fullmatch(("今日刮刮乐", "今天刮刮乐"))
@@ -74,7 +75,7 @@ async def nte_scratch_today(bot: Bot, ev: Event):
     if isinstance(res, str):
         await bot.send(res)
     else:
-        await bot.send(res)
+        await bot.send(MessageSegment.image(res))
 
 
 @sv_scratch.on_fullmatch(("删除刮刮乐ck", "清除刮刮乐ck", "解绑刮刮乐"))
