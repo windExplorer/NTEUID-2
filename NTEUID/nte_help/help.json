@@ -530,9 +530,9 @@
                 "need_admin": false
             },
             {
-                "name": "刮刮乐统计",
-                "desc": "总消费/收入/盈亏/回报率 + 奖励分布；别名 刮刮乐",
-                "eg": "刮刮乐统计",
+                "name": "刮刮乐",
+                "desc": "总消费/收入/盈亏/回报率 + 奖励分布",
+                "eg": "刮刮乐",
                 "need_ck": false,
                 "need_sk": false,
                 "need_admin": false
