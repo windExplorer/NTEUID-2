@@ -187,13 +187,13 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         d.text((x + 18, yy + 40), val, fill=clr, font=F30)
         if unit:
             d.text((x + 18 + F30.getlength(val) + 4, yy + 44), unit, fill=DIM, font=F13)
-    y += 258 + 10
+    y += 258 + 16
 
     # ── 每周趋势 ──
-    d.text((M, y), "趋势（按周）", fill=TEXT, font=F20)
-    y += 32
-    _line(d, y)
-    y += 10
+d.text((M, y), "趋势（按周）", fill=TEXT, font=F20)
+y += 40
+_line(d, y)
+y += 16
     for idx, (wk, st) in enumerate(weekly_items):
         c, r = idx % 2, idx // 2
         x = M + c * (cw + 12)
@@ -208,13 +208,13 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
             d.text((x + 14, yy + 56), f"{st['count']}次 · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
         else:
             d.text((x + 14, yy + 56), f"{st['count']}次", fill=MUTED, font=F13)
-    y += (len(weekly_items) // 2 + len(weekly_items) % 2) * 84 + 10
+    y += (len(weekly_items) // 2 + len(weekly_items) % 2) * 84 + 16
 
     # ── 奖励分布 ──
-    d.text((M, y), "奖励分布", fill=TEXT, font=F20)
-    y += 32
-    _line(d, y)
-    y += 8
+d.text((M, y), "奖励分布", fill=TEXT, font=F20)
+y += 40
+_line(d, y)
+y += 12
     SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 20, y + 6), "奖励", fill=TEXT, font=F14)
     d.text((M + 280, y + 6), "次数", fill=TEXT, font=F14)
@@ -234,8 +234,8 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         d.text((M + 280, y + 5), str(cnt), fill=clr, font=F13)
         d.text((M + 360, y + 5), f"{tv:,}" if tv else "", fill=MUTED, font=F13)
         d.text((M + 490, y + 5), f"{pct:.1f}%", fill=MUTED, font=F13)
-        y += 30
-    y += 10
+        y += 36
+    y += 12
 
     # ── 各刮刮卡统计 ──
     d.text((M, y), "各刮刮卡统计", fill=TEXT, font=F20)
@@ -259,14 +259,14 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         d.text((M + 280, y + 5), str(st["award_count"]), fill=MUTED, font=F13)
         d.text((M + 390, y + 5), f"{st['award_sum']:,}", fill=GREEN, font=F13)
         d.text((M + 530, y + 5), f"{pft:+,}", fill=GREEN if pft >= 0 else RED, font=F13)
-        y += 30
-    y += 10
+        y += 36
+    y += 12
 
     # ── 最近明细 ──
     d.text((M, y), "最近明细", fill=TEXT, font=F20)
-    y += 32
+    y += 40
     _line(d, y)
-    y += 8
+    y += 12
     records_sorted = sorted(all_records, key=lambda r: r.get("logTime", ""), reverse=True)
     for idx, rec in enumerate(records_sorted[:15]):
         bg2 = CARD if idx % 2 == 0 else CARD_ALT
@@ -277,7 +277,7 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         d.text((M + 14, y + 3), lt, fill=MUTED, font=F13)
         d.text((M + 160, y + 3), cn, fill=MUTED, font=F13)
         d.text((W - 220, y + 3), aw, fill=_ac(rec.get("award", "")), font=F13)
-        y += 25
+        y += 30
     if len(records_sorted) > 15:
         d.text((M + 14, y + 3), f"... 共 {len(records_sorted)} 条记录", fill=MUTED, font=F13)
 
