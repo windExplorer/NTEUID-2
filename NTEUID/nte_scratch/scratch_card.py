@@ -4,15 +4,13 @@ from __future__ import annotations
 import json, re, math, random
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import Any
-
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from gsuid_core.logger import logger
 
-from ..utils.image import get_nte_bg, add_footer
 from ..utils.fonts.nte_fonts import nte_font_origin as _f
-from ..resource.resource import RESOURCE_PATH
+
+_RES = Path(__file__).resolve().parent.parent / "resource"
 
 TZ_BJ = timezone(timedelta(hours=8))
 
@@ -28,7 +26,7 @@ MUTED = (150, 150, 160)
 DIM = (110, 110, 120)
 TEXT = (230, 230, 240)
 
-AVATAR_DIR = RESOURCE_PATH / "char" / "avatar"
+AVATAR_DIR = _RES / "char" / "avatar"
 
 
 def _rr(d, b, r, f):
@@ -164,7 +162,7 @@ def _render_stats_image(summary: dict, last_updated: str) -> Image.Image:
     d.rectangle([tx, 148, tx + 60, 150], fill=GOLD)
     # 右上角
     try:
-        fons = Image.open(RESOURCE_PATH / "material" / "fons.png").convert("RGBA").resize((42, 42), Image.LANCZOS)
+        fons = Image.open(_RES / "material" / "fons.png").convert("RGBA").resize((42, 42), Image.LANCZOS)
         img.paste(fons, (W - M - 46, 18), fons)
     except Exception:
         pass
