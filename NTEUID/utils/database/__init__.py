@@ -40,6 +40,7 @@ T_NTESignRecord = TypeVar("T_NTESignRecord", bound="NTESignRecord")
 T_NTEGroupMember = TypeVar("T_NTEGroupMember", bound="NTEGroupMember")
 T_NTECharData = TypeVar("T_NTECharData", bound="NTECharData")
 T_NTEDriveCharData = TypeVar("T_NTEDriveCharData", bound="NTEDriveCharData")
+T_NTEKfCookie = TypeVar("T_NTEKfCookie", bound="NTEKfCookie")
 
 SIGN_KIND_APP = "app"
 SIGN_KIND_GAME = "game"
@@ -1124,6 +1125,53 @@ class NTEDriveCharData(BaseIDModel, table=True):
         return result.rowcount
 
 
+class NTEKfCookie(BaseIDModel, table=True):
+    """kf.wanmei.com 客服平台 Cookie + 刮刮乐统计数据快照。
+    一行 = (user_id, bot_id)，一个用户一条。"""
+
+    __table_args__: dict[str, Any] = {"extend_existing": True}
+    user_id: str = Field(default="", index=True, title="平台用户ID")
+    bot_id: str = Field(default="", title="Bot ID")
+    cookie: str = Field(default="", title="kf cookie")
+    uid: str = Field(default="", title="游戏角色roleId")
+    total_spent: int = Field(default=0, title="总消耗方斯")
+    total_income: int = Field(default=0, title="总获得方斯")
+    profit: int = Field(default=0, title="总盈亏")
+    return_rate: float | None = Field(default=None, title="回报率%")
+    raw_data: str = Field(default="{}", title="完整切片数据(JSON)")
+    slice_count: int = Field(default=0, title="切片数")
+    last_updated: str = Field(default="", title="最后更新时间")
+
+    @classmethod
+    @with_session
+    async def get_by_user(
+        cls: type[T_NTEKfCookie], session: AsyncSession, user_id: str, bot_id: str
+    ) -> T_NTEKfCookie | None:
+        result = await session.execute(
+            select(cls).where(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id)
+        )
+        return result.scalar_one_or_none()
+
+    @classmethod
+    @with_session
+    async def upsert(
+        cls: type[T_NTEKfCookie],
+        session: AsyncSession,
+        user_id: str,
+        bot_id: str,
+        **kwargs: Any,
+    ) -> T_NTEKfCookie:
+        row = await cls.get_by_user(user_id, bot_id)
+        if row is None:
+            row = cls(user_id=user_id, bot_id=bot_id, **kwargs)
+            session.add(row)
+        else:
+            for k, v in kwargs.items():
+                setattr(row, k, v)
+        await session.flush()
+        return row
+
+
 @site.register_admin
 class NTEUserAdmin(GsAdminModel):
     pk_name = "id"
@@ -1157,3 +1205,10 @@ class NTEDriveCharDataAdmin(GsAdminModel):
     pk_name = "id"
     page_schema = PageSchema(label="异环drive个人数据", icon="fa fa-ranking-star")  # type: ignore
     model = NTEDriveCharData
+
+
+@site.register_admin
+class NTEKfCookieAdmin(GsAdminModel):
+    pk_name = "id"
+    page_schema = PageSchema(label="异环刮刮乐Cookie", icon="fa fa-ticket")  # type: ignore
+    model = NTEKfCookie

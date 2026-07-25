@@ -1,0 +1,357 @@
+"""猫亭刮刮乐 - 数据抓取与统计服务。
+
+接口文档：
+  POST https://kf.wanmei.com/selfItemFlowQuery/search
+  - typeId=29, gameId=191, itemType=13, itemSubType=1, item5=110
+  - 需 roleId(游戏角色id) + Cookie(kf.wanmei.com 会话)
+"""
+from __future__ import annotations
+
+import re
+import json
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import httpx
+
+from gsuid_core.logger import logger
+
+from ..utils.database import NTEKfCookie, NTEUser
+
+TZ_BEIJING = timezone(timedelta(hours=8))
+BASE = "https://kf.wanmei.com"
+URL_SEARCH = f"{BASE}/selfItemFlowQuery/search"
+URL_PAGE = f"{BASE}/selfItemFlowQuery?gameId=191"
+SLICE_DAYS = 7
+PAGE_SIZE = 1000
+PAGE_LIMIT = 50  # 防无限翻页
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+    "Referer": URL_PAGE,
+    "X-Requested-With": "XMLHttpRequest",
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+}
+
+INFO_RE = re.compile(r"共计消耗(\d+)方斯.*?获得奖券奖励(\d+)方斯")
+
+
+def _fmt(dt: datetime) -> str:
+    return dt.astimezone(TZ_BEIJING).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _fmt_date(d: datetime) -> str:
+    return d.astimezone(TZ_BEIJING).strftime("%Y-%m-%d")
+
+
+# ── 网络请求 ──
+
+
+async def _post_search(
+    client: httpx.AsyncClient, cookie: str, role_id: str, start: datetime, end: datetime, page: int = 1
+) -> dict[str, Any]:
+    """调用 kf 查询接口，返回解析后的 {spent, income, raw}"""
+    params = {
+        "typeId": "29",
+        "gameId": "191",
+        "server": "",
+        "roleId": role_id,
+        "itemType": "13",
+        "item1": "",
+        "itemSubType": "1",
+        "item4": "",
+        "item5": "110",
+        "item8": "",
+        "item11": "",
+        "item12": "",
+        "startTime": _fmt(start),
+        "endTime": _fmt(end),
+        "pageNo": str(page),
+        "pageSize": str(PAGE_SIZE),
+    }
+    resp = await client.post(URL_SEARCH, data=params, headers={**HEADERS, "Cookie": cookie}, timeout=30)
+    text = resp.text.replace("<pre>", "").replace("</pre>", "").strip()
+    payload = json.loads(text)
+    code = str(payload.get("code"))
+    msg = payload.get("message") or ""
+    if code == "1":
+        if "没有查询到" in msg or "没有搜索到" in msg or "暂无" in msg:
+            return {"spent": 0, "income": 0, "raw": text}
+        raise RuntimeError(f"接口返回错误: {msg}")
+    data = payload.get("data") or {}
+    result = data.get("result") or []
+    if isinstance(result, list) and len(result) == 0:
+        return {"spent": 0, "income": 0, "raw": text}
+    info = data.get("info") or ""
+    m = INFO_RE.search(info)
+    if not m:
+        raise RuntimeError(f"无法解析 info: {info!r}")
+    return {"spent": int(m.group(1)), "income": int(m.group(2)), "raw": text}
+
+
+async def _fetch_slice(
+    client: httpx.AsyncClient, cookie: str, role_id: str, start: datetime, end: datetime
+) -> dict[str, Any]:
+    """抓取一档（含接口内分页）。"""
+    total = {"spent": 0, "income": 0}
+    pages: list[str] = []
+    for page in range(1, PAGE_LIMIT + 1):
+        parsed = await _post_search(client, cookie, role_id, start, end, page)
+        pages.append(parsed["raw"])
+        if page == 1:
+            total = {"spent": parsed["spent"], "income": parsed["income"]}
+        data_obj = json.loads(parsed["raw"]).get("data") or {}
+        result_list = data_obj.get("result")
+        if not (isinstance(result_list, list) and len(result_list) >= PAGE_SIZE):
+            break
+    profit = total["income"] - total["spent"]
+    return_rate = (total["income"] / total["spent"] * 100) if total["spent"] else None
+    return {
+        "start": _fmt(start),
+        "end": _fmt(end),
+        "spent": total["spent"],
+        "income": total["income"],
+        "profit": profit,
+        "return_rate": return_rate,
+        "pages": pages,
+    }
+
+
+def _build_slices(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    slices: list[tuple[datetime, datetime]] = []
+    cursor = start
+    while cursor < end:
+        slice_end = min(end, cursor + timedelta(days=SLICE_DAYS) - timedelta(seconds=1))
+        slices.append((cursor, slice_end))
+        cursor = slice_end + timedelta(seconds=1)
+    return slices
+
+
+def _collect_records(slice_data: dict) -> list[dict]:
+    """从 slice 的 pages 字段提取所有明细记录。"""
+    records: list[dict] = []
+    for page in slice_data.get("pages", []):
+        if isinstance(page, str):
+            page = json.loads(page)
+        result = (page.get("data") or {}).get("result") or []
+        if isinstance(result, list):
+            records.extend(result)
+    return records
+
+
+# ── 公开接口 ──
+
+
+async def fetch_scratch_data(cookie: str, role_id: str) -> dict[str, Any]:
+    """抓取全部刮刮乐数据（从 2026-07-02 起），返回汇总结果。"""
+    start = datetime(2026, 7, 2, 0, 0, 0, tzinfo=TZ_BEIJING)
+    end = datetime.now(TZ_BEIJING).replace(hour=0, minute=0, second=0, microsecond=0)
+    slices = _build_slices(start, end)
+    results: list[dict] = []
+    async with httpx.AsyncClient(verify=False) as client:
+        for s, e in slices:
+            logger.info(f"[刮刮乐] 抓取 {_fmt(s)} ~ {_fmt(e)}")
+            rec = await _fetch_slice(client, cookie, role_id, s, e)
+            rec["key"] = f"{s.strftime('%Y%m%d%H%M%S')}_{e.strftime('%Y%m%d%H%M%S')}"
+            results.append(rec)
+    total_spent = sum(r["spent"] for r in results)
+    total_income = sum(r["income"] for r in results)
+    total_profit = total_income - total_spent
+    total_rate = (total_income / total_spent * 100) if total_spent else None
+    summary = {
+        "generated_at": _fmt(datetime.now(TZ_BEIJING)),
+        "range_start": _fmt(start),
+        "range_end": _fmt(end),
+        "total_spent": total_spent,
+        "total_income": total_income,
+        "total_profit": total_profit,
+        "total_return_rate": total_rate,
+        "slice_count": len(results),
+        "slices": [{k: v for k, v in r.items() if k != "pages"} for r in results],
+        "pages": [p for r in results for p in r.get("pages", [])],
+    }
+    return summary
+
+
+async def fetch_today_data(cookie: str, role_id: str) -> dict[str, Any] | None:
+    """抓取当日刮刮乐数据。"""
+    today = datetime.now(TZ_BEIJING)
+    start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = today.replace(hour=23, minute=59, second=59)
+    async with httpx.AsyncClient(verify=False) as client:
+        rec = await _fetch_slice(client, cookie, role_id, start, end)
+    if rec["spent"] == 0 and rec["income"] == 0:
+        return None
+    records = _collect_records(rec)
+    return {**rec, "records": records}
+
+
+def aggregate_records(summary: dict) -> dict:
+    """从 summary 的 pages 中提取总记录统计。"""
+    all_records: list[dict] = []
+    for p in summary.get("pages", []):
+        if isinstance(p, str):
+            p = json.loads(p)
+        result = (p.get("data") or {}).get("result") or []
+        if isinstance(result, list):
+            all_records.extend(result)
+    award_counts: dict[str, int] = {}
+    total_award_fangsi = 0
+    for r in all_records:
+        aw = r.get("award") or ""
+        award_counts[aw] = award_counts.get(aw, 0) + 1
+        m = re.search(r"方斯\*(\d+)", aw)
+        if m:
+            total_award_fangsi += int(m.group(1))
+    return {
+        "total_records": len(all_records),
+        "award_counts": dict(sorted(award_counts.items(), key=lambda x: -x[1])),
+        "total_award_fangsi": total_award_fangsi,
+    }
+
+
+async def bind_and_fetch(user_id: str, bot_id: str, cookie: str) -> str:
+    """绑定 kf cookie 并自动抓取刮刮乐数据。返回用户提示文案。"""
+    # 检查用户是否已登录
+    user = await NTEUser.get_active(user_id, bot_id)
+    if user is None:
+        return "你还没有登录异环账号哦！请先使用【登录】指令登录后再添加刮刮乐 cookie。"
+
+    role_id = user.uid
+    if not role_id:
+        return "未找到你的游戏角色 ID，请先登录获取角色信息。"
+
+    # 抓取数据
+    try:
+        summary = await fetch_scratch_data(cookie, role_id)
+    except Exception as e:
+        logger.exception(f"[刮刮乐] 抓取失败: {e}")
+        return f"刮刮乐数据抓取失败：{e}。请检查 cookie 是否有效。"
+
+    # 入库
+    s = summary
+    await NTEKfCookie.upsert(
+        user_id, bot_id,
+        cookie=cookie,
+        uid=role_id,
+        total_spent=s["total_spent"],
+        total_income=s["total_income"],
+        profit=s["total_profit"],
+        return_rate=s["total_return_rate"],
+        raw_data=json.dumps(s, ensure_ascii=False),
+        slice_count=s["slice_count"],
+        last_updated=_fmt(datetime.now(TZ_BEIJING)),
+    )
+    return (
+        f"✅ 刮刮乐 cookie 绑定成功，数据已获取！\n"
+        f"📊 累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入\n"
+        f"    盈亏：{s['total_profit']:+,,}    回报率：{s['total_return_rate']:.2f}%"
+        if s["total_return_rate"] is not None
+        else f"✅ 刮刮乐 cookie 绑定成功，数据已获取！\n累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入"
+    )
+
+
+async def refresh_data(user_id: str, bot_id: str) -> str:
+    """刷新刮刮乐数据。返回提示文案。"""
+    row = await NTEKfCookie.get_by_user(user_id, bot_id)
+    if row is None:
+        return "你还没有绑定刮刮乐 cookie，请先发送【添加刮刮乐cookie <cookie>】"
+
+    if not row.cookie or not row.uid:
+        return "刮刮乐数据不完整，请重新绑定 cookie。"
+
+    try:
+        summary = await fetch_scratch_data(row.cookie, row.uid)
+    except Exception as e:
+        logger.exception(f"[刮刮乐] 刷新失败: {e}")
+        return f"刮刮乐数据刷新失败：{e}"
+
+    s = summary
+    await NTEKfCookie.upsert(
+        user_id, bot_id,
+        cookie=row.cookie,
+        uid=row.uid,
+        total_spent=s["total_spent"],
+        total_income=s["total_income"],
+        profit=s["total_profit"],
+        return_rate=s["total_return_rate"],
+        raw_data=json.dumps(s, ensure_ascii=False),
+        slice_count=s["slice_count"],
+        last_updated=_fmt(datetime.now(TZ_BEIJING)),
+    )
+    return (
+        f"✅ 刮刮乐数据已刷新！\n"
+        f"📊 累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入\n"
+        f"    盈亏：{s['total_profit']:+,,}    回报率：{s['total_return_rate']:.2f}%"
+        if s["total_return_rate"] is not None
+        else f"✅ 刮刮乐数据已刷新！\n累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入"
+    )
+
+
+async def show_stats(user_id: str, bot_id: str) -> str:
+    """返回刮刮乐统计文案。"""
+    row = await NTEKfCookie.get_by_user(user_id, bot_id)
+    if row is None or not row.raw_data or row.raw_data == "{}":
+        return "暂无刮刮乐数据，请先【添加刮刮乐cookie <cookie>】"
+
+    s = json.loads(row.raw_data)
+    agg = aggregate_records(s)
+    lines = [
+        "📊 刮刮乐累计统计",
+        f"　总消费：{s['total_spent']:,} 方斯",
+        f"　总收入：{s['total_income']:,} 方斯",
+        f"　总盈亏：{s['total_profit']:+,,} 方斯",
+    ]
+    if s["total_return_rate"] is not None:
+        lines.append(f"　回报率：{s['total_return_rate']:.2f}%")
+    lines.append(f"　总刮数：{agg['total_records']} 次")
+    lines.append(f"　数据切片：{s['slice_count']} 段")
+    lines.append(f"　最后更新：{row.last_updated}")
+    if agg["award_counts"]:
+        lines.append("")
+        lines.append("🎁 奖励分布（前10）：")
+        for aw, cnt in list(agg["award_counts"].items())[:10]:
+            label = aw if aw else "（未中奖）"
+            lines.append(f"  {label} × {cnt}")
+    return "\n".join(lines)
+
+
+async def show_today(user_id: str, bot_id: str) -> str:
+    """返回今日刮刮乐数据。"""
+    row = await NTEKfCookie.get_by_user(user_id, bot_id)
+    if row is None:
+        return "你还没有绑定刮刮乐 cookie，请先【添加刮刮乐cookie <cookie>】"
+
+    if not row.cookie or not row.uid:
+        return "刮刮乐数据不完整，请重新绑定 cookie。"
+
+    try:
+        today = await fetch_today_data(row.cookie, row.uid)
+    except Exception as e:
+        logger.exception(f"[刮刮乐] 今日查询失败: {e}")
+        return f"今日数据查询失败：{e}"
+
+    if today is None:
+        today_str = datetime.now(TZ_BEIJING).strftime("%Y-%m-%d")
+        return f"📅 {today_str} 暂无刮刮乐记录"
+
+    records = today.get("records", [])
+    award_lines: list[str] = []
+    for r in records:
+        aw = r.get("award") or "（未中奖）"
+        award_lines.append(f"  {aw}")
+    lines = [
+        f"📅 今日刮刮乐 ({_fmt_date(datetime.now(TZ_BEIJING))})",
+        f"　消费：{today['spent']:,} 方斯",
+        f"　收入：{today['income']:,} 方斯",
+        f"　盈亏：{today['profit']:+,,} 方斯",
+    ]
+    if today["return_rate"] is not None:
+        lines.append(f"　回报率：{today['return_rate']:.2f}%")
+    lines.append(f"　次数：{len(records)} 次")
+    if award_lines:
+        lines.append("　明细：")
+        lines.extend(award_lines[:20])  # 最多显示20条
+        if len(award_lines) > 20:
+            lines.append(f"  ... 共 {len(award_lines)} 条")
+    return "\n".join(lines)
