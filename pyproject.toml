@@ -10,7 +10,13 @@ authors = [{name = "tyql88"}]
 readme = "README.md"
 requires-python = ">=3.11, <4.0"
 dependencies = [
+    "aiofiles>=25.1.0",
+    "boltons>=26.1.0",
+    "colorama>=0.4.6",
+    "msgspec>=0.21.1",
+    "numpy>=2.4.6",
     "pycryptodome>=3.20.0",
+    "structlog>=26.1.0",
 ]
 
 [tool.pyright]
