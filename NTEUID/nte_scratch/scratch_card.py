@@ -1,27 +1,30 @@
-"""刮刮乐统计图渲染（与角色面板同背景/转码逻辑）。"""
+"""刮刮乐统计图渲染"""
 from __future__ import annotations
 
 import json, re, math, random
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from gsuid_core.logger import logger
 from gsuid_core.utils.image.convert import convert_img
 
 from ..utils.image import get_nte_bg, draw_card
-from ..utils.fonts.nte_fonts import nte_font_origin as _f
 
 TZ_BJ = timezone(timedelta(hours=8))
 W = 760
-M = 22
+W_TODAY = 680
+M = 20
 
-def _fload(size: int) -> ImageFont.FreeTypeFont:
-    return _f(size)
-F13 = _fload(13); F14 = _fload(14); F15 = _fload(15); F16 = _fload(16)
-F18 = _fload(18); F20 = _fload(20); F24 = _fload(24); F28 = _fload(28)
-F30 = _fload(30); F36 = _fload(36)
+
+def _f(size: int):
+    from ..utils.fonts.nte_fonts import nte_font_bold
+    return nte_font_bold(size)
+
+F13 = _f(13); F14 = _f(14); F15 = _f(15); F16 = _f(16)
+F18 = _f(18); F20 = _f(20); F24 = _f(24); F28 = _f(28)
+F30 = _f(30); F36 = _f(36)
 
 CARD = (45, 48, 56)
 CARD_ALT = (52, 55, 63)
@@ -33,6 +36,7 @@ GREEN = (60, 200, 110)
 RED = (240, 80, 80)
 PURPLE = (180, 130, 255)
 YELLOW_BRIGHT = (255, 200, 60)
+SHADOW_COLOR = (30, 32, 38)
 
 
 class SD:
@@ -44,14 +48,14 @@ def _sc(name):
     return (name or "").replace("《", "").replace("》", "")
 
 def _ac(award):
-    if not award: return MUTED
+    if not award: return DIM
     if "方斯" not in award: return GOLD
     m = re.search(r"方斯\*(\d+)", award)
     v = int(m.group(1)) if m else 0
     if v >= 30000: return YELLOW_BRIGHT
     if v >= 20000: return PURPLE
     if v >= 10000: return GREEN
-    return MUTED
+    return DIM
 
 def _aval(aw):
     m = re.search(r"方斯\*(\d+)", aw)
@@ -60,7 +64,7 @@ def _aval(aw):
 def _line(d, y):
     d.rectangle([M, y, W - M, y + 1], fill=(60, 63, 70))
 
-def _load_avatar(size=64):
+def _load_avatar(size=60):
     res_dir = Path(__file__).resolve().parent.parent / "resource"
     files = sorted((res_dir / "char" / "avatar").rglob("player_*_256.png")) if (res_dir / "char" / "avatar").exists() else []
     try:
@@ -140,21 +144,16 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     card_items = sorted(card_stats.items(), key=lambda x: -x[1]["count"])
 
     award_items = sorted(award_counts.items(), key=lambda x: -_aval(x[0]))[:8]
-    aw_rows = len(award_items)
-    card_rows = len(card_items)
-    wk_rows = math.ceil(len(weekly_items) / 2)
-    detail_rows = min(len(all_records), 15)
 
-    # 用超大画布避免内容被截断，最后 crop
-    _MAX_H = 10000
+    _MAX_H = 3000
     canvas = get_nte_bg(W, _MAX_H, bg="bg3")
-    # 叠加半透明暗色遮罩（仿帮助图风格）
     _overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
-    # ── 标题 ──
-    d.rectangle([0, 0, W, 170], fill=(30, 32, 40))
+    # 标题（半透明背景让 bg3 透出）
+    _title_overlay = Image.new("RGBA", (W, 170), (30, 32, 40, 180))
+    canvas.paste(_title_overlay, (0, 0), _title_overlay)
     d.rectangle([M, 168, M + 60, 170], fill=(80, 140, 210))
     d.text((M, 30), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
     avatar = _load_avatar(60)
@@ -165,10 +164,9 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     d.text((M, 108), f"更新于 {last_updated} · 角色 {role_id}", fill=(130, 138, 150), font=F14)
     if total_cnt:
         d.text((M, 135), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=(130, 138, 150), font=F13)
+    y = 190
 
-    y = title_h + 20
-
-    # ── 概况 ──
+    # 概况
     stats = [
         ("总消费", f"{ts:,}", "方斯", TEXT),
         ("总收入", f"{ti:,}", "方斯", TEXT),
@@ -180,41 +178,41 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     cw = (W - M * 2 - 12) // 2
     for i, (lb, val, unit, clr) in enumerate(stats):
         c, r = i % 2, i // 2
-        x = M + c * (cw + 12)
-        yy = y + r * 86
-        draw_card(d, (x, yy, x + cw, yy + 78), radius=16, fill=CARD)
+        x = M + c * (cw + 14)
+        yy = y + r * 100
+        draw_card(d, (x, yy, x + cw, yy + 82), radius=16, fill=CARD)
         d.text((x + 18, yy + 12), lb, fill=MUTED, font=F14)
-        d.text((x + 18, yy + 40), val, fill=clr, font=F30)
+        d.text((x + 18, yy + 44), val, fill=clr, font=F30)
         if unit:
-            d.text((x + 18 + F30.getlength(val) + 4, yy + 44), unit, fill=DIM, font=F13)
-    y += 258 + 16
+            d.text((x + 18 + F30.getlength(val) + 4, yy + 48), unit, fill=DIM, font=F13)
+    y += 300 + 30
 
-    # ── 每周趋势 ──
-d.text((M, y), "趋势（按周）", fill=TEXT, font=F20)
-y += 40
-_line(d, y)
-y += 16
+    # 每周趋势
+    d.text((M, y), "趋势（按周）", fill=TEXT, font=F20)
+    y += 36
+    _line(d, y)
+    y += 14
     for idx, (wk, st) in enumerate(weekly_items):
         c, r = idx % 2, idx // 2
-        x = M + c * (cw + 12)
-        yy = y + r * 84
-        draw_card(d, (x, yy, x + cw, yy + 76), radius=12, fill=CARD)
+        x = M + c * (cw + 14)
+        yy = y + r * 96
+        draw_card(d, (x, yy, x + cw, yy + 78), radius=12, fill=CARD)
         sp = st["count"] * 10000
         pft = st["income"] - sp
         rt = st["income"] / sp * 100 if sp else None
-        d.text((x + 14, yy + 10), f"{st['start']} ~ {st['end']}", fill=MUTED, font=F13)
-        d.text((x + 14, yy + 34), f"盈亏: {pft:+,}", fill=GREEN if pft >= 0 else RED, font=F18)
+        d.text((x + 16, yy + 12), f"{st['start']} ~ {st['end']}", fill=MUTED, font=F13)
+        d.text((x + 16, yy + 38), f"盈亏: {pft:+,}", fill=GREEN if pft >= 0 else RED, font=F18)
         if rt is not None:
-            d.text((x + 14, yy + 56), f"{st['count']}次 · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
+            d.text((x + 16, yy + 58), f"{st['count']}次 · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
         else:
-            d.text((x + 14, yy + 56), f"{st['count']}次", fill=MUTED, font=F13)
-    y += (len(weekly_items) // 2 + len(weekly_items) % 2) * 84 + 16
+            d.text((x + 16, yy + 58), f"{st['count']}次", fill=MUTED, font=F13)
+    y += math.ceil(len(weekly_items) / 2) * 96 + 30
 
-    # ── 奖励分布 ──
-d.text((M, y), "奖励分布", fill=TEXT, font=F20)
-y += 40
-_line(d, y)
-y += 12
+    # 奖励分布
+    d.text((M, y), "奖励分布", fill=TEXT, font=F20)
+    y += 36
+    _line(d, y)
+    y += 12
     SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 20, y + 6), "奖励", fill=TEXT, font=F14)
     d.text((M + 280, y + 6), "次数", fill=TEXT, font=F14)
@@ -223,25 +221,25 @@ y += 12
     y += 34
     for idx, (aw, cnt) in enumerate(award_items):
         bg2 = CARD if idx % 2 == 0 else CARD_ALT
-        SD.rr(d, (M, y, W - M, y + 28), 6, bg2)
+        SD.rr(d, (M, y, W - M, y + 36), 8, bg2)
         clr = _ac(aw)
         lb = aw if aw else "未中奖"
         v = _aval(aw)
         tv = v * cnt
         pct = cnt / total_cnt * 100 if total_cnt else 0
-        SD.rr(d, (M + 14, y + 7, M + 26, y + 21), 4, clr)
-        d.text((M + 34, y + 5), lb, fill=TEXT, font=F13)
-        d.text((M + 280, y + 5), str(cnt), fill=clr, font=F13)
-        d.text((M + 360, y + 5), f"{tv:,}" if tv else "", fill=MUTED, font=F13)
-        d.text((M + 490, y + 5), f"{pct:.1f}%", fill=MUTED, font=F13)
-        y += 36
-    y += 12
+        SD.rr(d, (M + 14, y + 10, M + 26, y + 26), 4, clr)
+        d.text((M + 34, y + 8), lb, fill=TEXT, font=F13)
+        d.text((M + 280, y + 8), str(cnt), fill=clr, font=F13)
+        d.text((M + 360, y + 8), f"{tv:,}" if tv else "", fill=DIM, font=F13)
+        d.text((M + 490, y + 8), f"{pct:.1f}%", fill=MUTED, font=F13)
+        y += 44
+    y += 30
 
-    # ── 各刮刮卡统计 ──
+    # 各刮刮卡统计
     d.text((M, y), "各刮刮卡统计", fill=TEXT, font=F20)
-    y += 32
+    y += 36
     _line(d, y)
-    y += 8
+    y += 12
     SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 20, y + 6), "刮刮卡", fill=TEXT, font=F14)
     d.text((M + 200, y + 6), "次数", fill=TEXT, font=F14)
@@ -251,41 +249,41 @@ y += 12
     y += 34
     for idx, (cid, st) in enumerate(card_items):
         bg2 = CARD if idx % 2 == 0 else CARD_ALT
-        SD.rr(d, (M, y, W - M, y + 28), 6, bg2)
+        SD.rr(d, (M, y, W - M, y + 36), 8, bg2)
         sp = st["count"] * 10000
         pft = st["award_sum"] - sp
-        d.text((M + 14, y + 5), cid, fill=TEXT, font=F13)
-        d.text((M + 200, y + 5), str(st["count"]), fill=TEXT, font=F13)
-        d.text((M + 280, y + 5), str(st["award_count"]), fill=MUTED, font=F13)
-        d.text((M + 390, y + 5), f"{st['award_sum']:,}", fill=GREEN, font=F13)
-        d.text((M + 530, y + 5), f"{pft:+,}", fill=GREEN if pft >= 0 else RED, font=F13)
-        y += 36
-    y += 12
+        d.text((M + 14, y + 8), cid, fill=TEXT, font=F13)
+        d.text((M + 200, y + 8), str(st["count"]), fill=TEXT, font=F13)
+        d.text((M + 280, y + 8), str(st["award_count"]), fill=MUTED, font=F13)
+        d.text((M + 390, y + 8), f"{st['award_sum']:,}", fill=GREEN, font=F13)
+        d.text((M + 530, y + 8), f"{pft:+,}", fill=GREEN if pft >= 0 else RED, font=F13)
+        y += 44
+    y += 30
 
-    # ── 最近明细 ──
+    # 最近明细
     d.text((M, y), "最近明细", fill=TEXT, font=F20)
-    y += 40
+    y += 36
     _line(d, y)
     y += 12
     records_sorted = sorted(all_records, key=lambda r: r.get("logTime", ""), reverse=True)
     for idx, rec in enumerate(records_sorted[:15]):
         bg2 = CARD if idx % 2 == 0 else CARD_ALT
-        SD.rr(d, (M, y, W - M, y + 24), 6, bg2)
+        SD.rr(d, (M, y, W - M, y + 30), 8, bg2)
         lt = rec.get("logTime", "") or ""
         cn = _sc(rec.get("scratchCardId", "") or "")
         aw = rec.get("award", "") or "未中奖"
-        d.text((M + 14, y + 3), lt, fill=MUTED, font=F13)
-        d.text((M + 160, y + 3), cn, fill=MUTED, font=F13)
-        d.text((W - 220, y + 3), aw, fill=_ac(rec.get("award", "")), font=F13)
-        y += 30
+        d.text((M + 14, y + 6), lt, fill=MUTED, font=F13)
+        d.text((M + 160, y + 6), cn, fill=MUTED, font=F13)
+        d.text((W - 220, y + 6), aw, fill=_ac(rec.get("award", "")), font=F13)
+        y += 34
     if len(records_sorted) > 15:
         d.text((M + 14, y + 3), f"... 共 {len(records_sorted)} 条记录", fill=MUTED, font=F13)
 
     # 底部
-    y += 60
+    y += 40
     d.rectangle([0, y, W, y + 36], fill=(30, 32, 40))
     d.text((M, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
-    y += 60
+    y += 36
 
     canvas = canvas.crop((0, 0, W, y))
     return await convert_img(canvas)
@@ -322,50 +320,50 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
         award_cnt[aw] = award_cnt.get(aw, 0) + 1
     award_items = sorted(award_cnt.items(), key=lambda x: -_aval(x[0]))[:6]
 
-    h = 200 + 30 + min(len(award_items), 6) * 30 + 30 + len(records) * 30 + 60 + 60
-
-    canvas = get_nte_bg(W, h, bg="bg3")
-    # 叠加半透明暗色遮罩（仿帮助图风格）
-    _overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
+    _MAX_H = 3000
+    canvas = get_nte_bg(W_TODAY, _MAX_H, bg="bg3")
+    _overlay = Image.new("RGBA", (W_TODAY, _MAX_H), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
-    # ── 标题（深色横幅，与角色面板一致）──
-    title_h = 160
-    title_img = get_nte_title_bg(W, title_h)
-    canvas.paste(title_img, (0, 0), title_img)
-    d.text((M, 30), "今日刮刮乐", fill=(255, 255, 255), font=F36)
-    avatar = _load_avatar(60)
+    # 标题（半透明背景让 bg3 透出）
+    _title_overlay = Image.new("RGBA", (W_TODAY, 160), (30, 32, 40, 180))
+    canvas.paste(_title_overlay, (0, 0), _title_overlay)
+    d.rectangle([M, 158, M + 60, 160], fill=(80, 140, 210))
+    d.text((M, 28), "今日刮刮乐", fill=(255, 255, 255), font=F36)
+    avatar = _load_avatar(56)
     if avatar:
         tw = int(F36.getlength("今日刮刮乐"))
-        canvas.paste(avatar, (M + tw + 14, 26), avatar)
-    _tt = M + tw + 80 if avatar else M + 220
-    d.rounded_rectangle([_tt, 34, _tt + 80, 58], 12, fill=(60, 70, 100))
-    d.text((_tt + 10, 37), today_str, fill=GOLD, font=F16)
-    d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(200, 210, 220), font=F16)
-    d.text((M, 108), f"今日刮了 {len(records)} 次", fill=(170, 180, 190), font=F13)
-    y = title_h + 20
+        canvas.paste(avatar, (M + tw + 14, 24), avatar)
+    tt = M + tw + 80 if avatar else M + 220
+    SD.rr(d, (tt, 34, tt + 80, 58), 12, (50, 54, 64))
+    d.text((tt + 10, 37), today_str, fill=GOLD, font=F16)
+    d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(170, 178, 190), font=F16)
+    d.text((M, 108), f"今日刮了 {len(records)} 次", fill=(130, 138, 150), font=F14)
+    y = 180
 
-    # ── 三列卡片 ──
-    cw = (W - 80) // 3
+    # 四张卡片
+    cw = (W_TODAY - M * 2 - 14) // 2
     for i, (lb, val, clr, unit) in enumerate([
         ("消费", f"{spent:,}", MUTED, "方斯"),
         ("收入", f"{income:,}", GREEN, "方斯"),
         ("盈亏", f"{profit:+,}", GREEN if profit >= 0 else RED, "方斯"),
+        ("回报率", f"{rate:.2f}%" if rate else "N/A", GOLD, ""),
     ]):
-        x = M + i * (cw + 12)
-        draw_card(d, (x, y, x + cw, y + 76), radius=14, fill=CARD)
+        c, r = i % 2, i // 2
+        x = M + c * (cw + 14)
+        yy = y + r * 88
+        draw_card(d, (x, yy, x + cw, yy + 76), radius=14, fill=CARD)
         cx = x + cw // 2
-        d.text((cx, y + 10), lb, fill=MUTED, font=F14, anchor="mt")
-        d.text((cx, y + 34), val, fill=clr, font=F28, anchor="mt")
-        d.text((cx, y + 60), unit, fill=DIM, font=F12, anchor="mt")
-    SD.rr(d, (M, y + 84, 200, y + 84 + 34), 10, (55, 58, 66))
-    d.text((M + 12, y + 89), f"回报率 {rate:.2f}%" if rate else "回报率 N/A", fill=GOLD, font=F16)
-    y += 138
+        d.text((cx, yy + 10), lb, fill=MUTED, font=F14, anchor="mt")
+        d.text((cx, yy + 34), val, fill=clr, font=F28, anchor="mt")
+        if unit:
+            d.text((cx, yy + 58), unit, fill=DIM, font=F12, anchor="mt")
+    y += 176 + 30
 
-    # ── 奖励分布 ──
+    # 奖励分布
     if award_items:
-        SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
+        SD.rr(d, (M, y, W_TODAY - M, y + 30), 8, (55, 58, 66))
         d.text((M + 14, y + 6), "奖励", fill=TEXT, font=F14)
         d.text((M + 200, y + 6), "次数", fill=TEXT, font=F14)
         d.text((M + 280, y + 6), "金额", fill=TEXT, font=F14)
@@ -373,37 +371,42 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
         y += 34
         for idx, (aw, cnt) in enumerate(award_items):
             bg2 = CARD if idx % 2 == 0 else CARD_ALT
-            SD.rr(d, (M, y, W - M, y + 26), 6, bg2)
+            SD.rr(d, (M, y, W_TODAY - M, y + 36), 8, bg2)
             v = _aval(aw)
             tv = v * cnt
             clr = PURPLE if v >= 20000 else GREEN if v >= 10000 else MUTED
             lb = aw if aw else "未中奖"
-            SD.rr(d, (M + 12, y + 6, M + 24, y + 20), 4, clr)
-            d.text((M + 30, y + 4), lb, fill=TEXT, font=F13)
-            d.text((M + 200, y + 4), str(cnt), fill=clr, font=F13)
-            d.text((M + 280, y + 4), f"{v:,}" if v else "", fill=MUTED, font=F13)
-            d.text((M + 400, y + 4), f"{tv:,}" if tv else "", fill=clr, font=F13)
-            y += 28
-        y += 6
+            SD.rr(d, (M + 12, y + 10, M + 24, y + 26), 4, clr)
+            d.text((M + 30, y + 8), lb, fill=TEXT, font=F13)
+            d.text((M + 200, y + 8), str(cnt), fill=clr, font=F13)
+            d.text((M + 280, y + 8), f"{v:,}" if v else "", fill=MUTED, font=F13)
+            d.text((M + 400, y + 8), f"{tv:,}" if tv else "", fill=clr, font=F13)
+            y += 44
+        y += 30
 
-    # ── 今日记录 ──
-    SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
+    # 今日记录
+    SD.rr(d, (M, y, W_TODAY - M, y + 30), 8, (55, 58, 66))
     d.text((M + 14, y + 6), "时间", fill=TEXT, font=F14)
-    d.text((M + 200, y + 6), "奖励", fill=TEXT, font=F14)
+    d.text((M + 100, y + 6), "卡名", fill=TEXT, font=F14)
+    d.text((M + 280, y + 6), "奖励", fill=TEXT, font=F14)
     y += 34
     for idx, r in enumerate(records):
         bg2 = CARD if idx % 2 == 0 else CARD_ALT
-        SD.rr(d, (M, y, W - M, y + 26), 6, bg2)
+        SD.rr(d, (M, y, W_TODAY - M, y + 30), 8, bg2)
         aw = r.get("award", "") or "未中奖"
         clr = GREEN if aw != "未中奖" else MUTED
-        d.text((M + 14, y + 4), (r.get("logTime") or "")[-8:], fill=MUTED, font=F13)
-        d.text((M + 200, y + 4), aw, fill=clr, font=F13)
-        d.text((W - 50, y + 4), "✓" if aw != "未中奖" else "✗", fill=GREEN if aw != "未中奖" else RED, font=F15)
-        y += 28
+        cn = (r.get("scratchCardId", "") or "").replace("《", "").replace("》", "")
+        d.text((M + 14, y + 6), (r.get("logTime") or "")[-8:], fill=MUTED, font=F13)
+        d.text((M + 100, y + 6), cn, fill=MUTED, font=F13)
+        d.text((M + 280, y + 6), aw, fill=clr, font=F13)
+        d.text((W_TODAY - 50, y + 6), "✓" if aw != "未中奖" else "✗", fill=GREEN if aw != "未中奖" else RED, font=F15)
+        y += 34
 
-    y += 60
-    d.rectangle([0, y, W, y + 36], fill=(30, 32, 40))
+    # 底部
+    y += 30
+    d.rectangle([0, y, W_TODAY, y + 36], fill=(30, 32, 40))
     d.text((M, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
-    y += 60
-    canvas = canvas.crop((0, 0, W, y))
+    y += 36
+
+    canvas = canvas.crop((0, 0, W_TODAY, y))
     return await convert_img(canvas)
