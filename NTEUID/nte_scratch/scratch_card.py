@@ -152,11 +152,10 @@ def _render_stats_image(summary: dict, last_updated: str) -> Image.Image:
     # ── 标题 ──
     d.rectangle([0, 0, W, 200], fill=(24, 24, 30))
     avatar = _load_avatar(56)
-    tx = M
+    d.text((M, 18), "猫亭刮刮乐", fill=(255, 255, 255), font=_f(36))
+    tx = M + int(_f(36).getlength("猫亭刮刮乐")) + 16
     if avatar:
         img.paste(avatar, (tx, 16), avatar)
-        tx += 68
-    d.text((tx, 18), "猫亭刮刮乐", fill=(255, 255, 255), font=_f(36))
     d.text((tx, 68), "午夜猫刊亭刮刮乐数据统计", fill=MUTED, font=_f(16))
     d.text((tx, 98), f"更新于 {last_updated} · 共 {total_cnt} 条记录", fill=DIM, font=_f(14))
     d.rectangle([tx, 148, tx + 60, 150], fill=GOLD)
@@ -343,13 +342,12 @@ def _render_today_image(today: dict) -> Image.Image:
     # ── 标题 ──
     d.rectangle([0, 0, W, 170], fill=(24, 24, 30))
     avatar = _load_avatar(50)
-    tx = M
+    d.text((M, 20), "今日刮刮乐", fill=(255, 255, 255), font=_f(36))
+    tx = M + int(_f(36).getlength("今日刮刮乐")) + 14
     if avatar:
         img.paste(avatar, (tx, 18), avatar)
-        tx += 62
-    d.text((tx, 20), "今日刮刮乐", fill=(255, 255, 255), font=_f(36))
-    _rr(d, (tx + 185, 28, tx + 265, 52), 12, (42, 42, 52))
-    d.text((tx + 195, 31), today_str, fill=GOLD, font=_f(18))
+    _rr(d, (tx + 60, 28, tx + 140, 52), 12, (42, 42, 52))
+    d.text((tx + 70, 31), today_str, fill=GOLD, font=_f(18))
 
     # ── 三列卡片 ──
     cw = (W - 80) // 3
