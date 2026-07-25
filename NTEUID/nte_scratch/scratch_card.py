@@ -145,11 +145,11 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     wk_rows = math.ceil(len(weekly_items) / 2)
     detail_rows = min(len(all_records), 15)
 
-    h = 240 + 268 + 30 + 84 * wk_rows + 60 + 34 * aw_rows + 60 + 34 * card_rows + 60 + 28 * detail_rows + 120
-
-    canvas = get_nte_bg(W, h, bg="bg3")
+    # 用超大画布避免内容被截断，最后 crop
+    _MAX_H = 10000
+    canvas = get_nte_bg(W, _MAX_H, bg="bg3")
     # 叠加半透明暗色遮罩（仿帮助图风格）
-    _overlay = Image.new("RGBA", (W, h), (20, 22, 28, 120))
+    _overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
@@ -326,7 +326,7 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
 
     canvas = get_nte_bg(W, h, bg="bg3")
     # 叠加半透明暗色遮罩（仿帮助图风格）
-    _overlay = Image.new("RGBA", (W, h), (20, 22, 28, 120))
+    _overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ImageDraw.Draw(canvas)
 
