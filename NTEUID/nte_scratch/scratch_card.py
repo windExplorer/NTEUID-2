@@ -88,10 +88,10 @@ async def draw_scratch_stats(user_id: str, bot_id: str) -> bytes | str:
     if row is None or not row.raw_data or row.raw_data == "{}":
         return "暂无刮刮乐数据，请先去私聊【添加刮刮乐ck】"
     s = json.loads(row.raw_data)
-    return _render_stats_image(s, row.last_updated, row.uid)
+    return await _render_stats_image(s, row.last_updated, row.uid)
 
 
-def _render_stats_image(summary: dict, last_updated: str, role_id: str) -> bytes:
+async def _render_stats_image(summary: dict, last_updated: str, role_id: str) -> bytes:
     slices = summary.get("slices", [])
     all_pages = []
     for p in summary.get("pages", []):
@@ -305,10 +305,10 @@ async def draw_scratch_today(user_id: str, bot_id: str) -> bytes | str:
         return f"今日数据查询失败：{e}"
     if today is None:
         return f"📅 {datetime.now(TZ_BJ).strftime('%Y-%m-%d')} 暂无刮刮乐记录"
-    return _render_today_image(today, datetime.now(TZ_BJ).strftime("%Y-%m-%d"))
+    return await _render_today_image(today, datetime.now(TZ_BJ).strftime("%Y-%m-%d"))
 
 
-def _render_today_image(today: dict, today_str: str) -> bytes:
+async def _render_today_image(today: dict, today_str: str) -> bytes:
     records = today.get("records", [])
     spent = today.get("spent", 0)
     income = today.get("income", 0)
