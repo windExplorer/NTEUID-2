@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from gsuid_core.logger import logger
 from gsuid_core.utils.image.convert import convert_img
 
-from ..utils.image import get_nte_bg
+from ..utils.image import get_nte_bg, draw_card
 from ..utils.fonts.nte_fonts import nte_font_origin as _f
 
 TZ_BJ = timezone(timedelta(hours=8))
@@ -187,7 +187,7 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         c, r = i % 2, i // 2
         x = M + c * (cw + 12)
         yy = y + r * 86
-        SD.rr(d, (x, yy, x + cw, yy + 78), 16, CARD)
+        draw_card(d, (x, yy, x + cw, yy + 78), radius=16, fill=CARD)
         d.text((x + 18, yy + 12), lb, fill=MUTED, font=F14)
         d.text((x + 18, yy + 40), val, fill=clr, font=F30)
         if unit:
@@ -203,7 +203,7 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         c, r = idx % 2, idx // 2
         x = M + c * (cw + 12)
         yy = y + r * 84
-        SD.rr(d, (x, yy, x + cw, yy + 76), 12, CARD)
+        draw_card(d, (x, yy, x + cw, yy + 76), radius=12, fill=CARD)
         sp = st["count"] * 10000
         pft = st["income"] - sp
         rt = st["income"] / sp * 100 if sp else None
@@ -351,7 +351,7 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
         ("盈亏", f"{profit:+,}", GREEN if profit >= 0 else RED, "方斯"),
     ]):
         x = M + i * (cw + 12)
-        SD.rr(d, (x, y, x + cw, y + 76), 14, CARD)
+        draw_card(d, (x, y, x + cw, y + 76), radius=14, fill=CARD)
         cx = x + cw // 2
         d.text((cx, y + 10), lb, fill=MUTED, font=F14, anchor="mt")
         d.text((cx, y + 34), val, fill=clr, font=F28, anchor="mt")
