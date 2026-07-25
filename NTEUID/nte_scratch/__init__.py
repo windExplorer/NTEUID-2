@@ -107,11 +107,14 @@ async def nte_scratch_rank(bot: Bot, ev: Event):
 
 @sv_scratch.on_fullmatch(("ck软件", "获取ck软件"))
 async def nte_scratch_apk(bot: Bot, ev: Event):
+    import base64
     apk_dir = Path(__file__).parent
     apks = list(apk_dir.glob("*.apk"))
     if not apks:
         return await bot.send("ck 提取工具暂未上传，请联系管理员。")
-    await bot.send(Message.file(apks[0], "CK获取工具.apk"))
+    apk_bytes = apks[0].read_bytes()
+    b64 = base64.b64encode(apk_bytes).decode()
+    await bot.send(Message(type="file", data=f"CK获取工具.apk|{b64}"))
 async def nte_scratch_delete(bot: Bot, ev: Event):
     msg = await delete_ck(ev.user_id, ev.bot_id)
     await bot.send(msg)
