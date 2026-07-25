@@ -282,10 +282,10 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
         d.text((M + 14, y + 3), f"... 共 {len(records_sorted)} 条记录", fill=MUTED, font=F13)
 
     # 底部
-    y += 30
-    d.rectangle([0, y, W, y + 40], fill=(30, 32, 40))
-    d.text((M, y + 12), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
-    y += 40
+    y += 20
+    d.rectangle([0, y, W, y + 36], fill=(30, 32, 40))
+    d.text((M, y + 10), "NTEUID · 一切正常，就是异常。", fill=(100, 105, 115), font=F13)
+    y += 36
 
     canvas = canvas.crop((0, 0, W, y))
     return await convert_img(canvas)
