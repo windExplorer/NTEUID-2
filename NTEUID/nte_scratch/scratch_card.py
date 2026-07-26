@@ -185,20 +185,32 @@ def _make_role_title_prod(W, role_name, role_id, avatar):
 
 # ── 总计统计图 ──
 
-async def draw_scratch_stats(ev: Event) -> bytes | str:
+async def draw_scratch_stats(
+    ev: Event | None = None,
+    user_id: str | None = None,
+    bot_id: str | None = None,
+) -> bytes | str:
     from ..utils.database import NTEKfCookie
-    row = await NTEKfCookie.get_by_user(ev.user_id, ev.bot_id)
+
+    target_uid = user_id or (ev.user_id if ev else None)
+    target_bot = bot_id or (ev.bot_id if ev else None)
+    if not target_uid or not target_bot:
+        return "暂无刮刮乐数据，请先去私聊【nte添加刮刮乐ck】"
+    row = await NTEKfCookie.get_by_user(target_uid, target_bot)
     if row is None or not row.raw_data or row.raw_data == "{}":
         return "暂无刮刮乐数据，请先去私聊【nte添加刮刮乐ck】"
     s = json.loads(row.raw_data)
     # 用户信息（复用面板图头部：头像 + 昵称 + UID）
     from gsuid_core.utils.image.image_tools import get_event_avatar
     from ..utils.database import NTEUser
+
+    # 仅查看自己时拉取头像；指定其他用户（管理员指令）不拉取，避免用错头像
     qq_avatar = None
-    try:
-        qq_avatar = await get_event_avatar(ev)
-    except Exception:
-        qq_avatar = None
+    if ev is not None and user_id is None:
+        try:
+            qq_avatar = await get_event_avatar(ev)
+        except Exception:
+            qq_avatar = None
     role_name = "玩家"
     if row.uid:
         try:

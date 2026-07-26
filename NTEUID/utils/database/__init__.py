@@ -167,6 +167,27 @@ class NTEUser(User, table=True):
 
     @classmethod
     @with_session
+    async def list_primary_roles(
+        cls: type[T_NTEUser],
+        session: AsyncSession,
+        user_id: str,
+        bot_id: str,
+    ) -> list[tuple[str, str]]:
+        """主游戏(异环)下全部角色 [(roleId, 角色名), ...]。
+        绑定刮刮乐 ck 时列出角色供用户选择用，纯查库不走 API。"""
+        result = await session.execute(
+            select(cls.uid, cls.role_name).where(
+                cls.user_id == user_id,
+                cls.bot_id == bot_id,
+                col(cls.game_id) == PRIMARY_GAME_ID,
+                col(cls.uid) != "",
+                (col(cls.status).is_(None)) | (col(cls.status) == ""),
+            )
+        )
+        return [(uid, role_name) for uid, role_name in result.all()]
+
+    @classmethod
+    @with_session
     async def list_latest_per_account(
         cls: type[T_NTEUser],
         session: AsyncSession,
@@ -1151,6 +1172,28 @@ class NTEKfCookie(BaseIDModel, table=True):
             select(cls).where(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id)
         )
         return result.scalar_one_or_none()
+
+    @classmethod
+    @with_session
+    async def get_by_user_id(
+        cls: type[T_NTEKfCookie], session: AsyncSession, user_id: str
+    ) -> T_NTEKfCookie | None:
+        """跨 bot 按平台 user_id 查找（返回首个匹配，兼容旧调用）。"""
+        result = await session.execute(
+            select(cls).where(col(cls.user_id) == user_id)
+        )
+        return result.scalars().first()
+
+    @classmethod
+    @with_session
+    async def list_by_user_id(
+        cls: type[T_NTEKfCookie], session: AsyncSession, user_id: str
+    ) -> list[T_NTEKfCookie]:
+        """返回该 user_id 下的全部绑定记录（一个用户可能绑定多个账号/ bot）。"""
+        result = await session.execute(
+            select(cls).where(col(cls.user_id) == user_id)
+        )
+        return list(result.scalars().all())
 
     @classmethod
     @with_session

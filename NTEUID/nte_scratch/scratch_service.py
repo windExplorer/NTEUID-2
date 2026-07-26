@@ -16,7 +16,7 @@ import httpx
 
 from gsuid_core.logger import logger
 
-from ..utils.database import NTEKfCookie, NTEUser
+from ..utils.database import NTEKfCookie
 
 TZ_BEIJING = timezone(timedelta(hours=8))
 BASE = "https://kf.wanmei.com"
@@ -225,14 +225,17 @@ def aggregate_records(summary: dict) -> dict:
     }
 
 
-async def bind_and_fetch(user_id: str, bot_id: str, cookie: str) -> str:
-    """绑定 kf cookie 并自动抓取刮刮乐数据。返回用户提示文案。"""
-    # 检查用户是否已登录
-    user = await NTEUser.get_active(user_id, bot_id)
-    if user is None:
-        return "你还没有登录异环账号哦！请先使用【nte登录】指令登录后再【nte添加刮刮乐ck】。"
+async def bind_and_fetch(
+    user_id: str,
+    bot_id: str,
+    cookie: str,
+    role_id: str,
+) -> str:
+    """绑定 kf cookie 并自动抓取刮刮乐数据。返回用户提示文案。
 
-    role_id = user.uid
+    role_id(即游戏角色 roleId) 由指令层从 NTEUser 表查出（单账号直接用，
+    多账号由用户发数字选择后传入）。
+    """
     if not role_id:
         return "未找到你的游戏角色 ID，请先登录获取角色信息。"
 
@@ -301,6 +304,49 @@ async def refresh_data(user_id: str, bot_id: str) -> str:
         if s["total_return_rate"] is not None
         else f"✅ 刮刮乐数据已刷新！\n累计数据：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入"
     )
+
+
+async def refresh_user_data(user_id: str) -> str:
+    """管理员指令：强制刷新指定用户的刮刮乐数据。
+
+    一个用户可能绑定多个账号（多行记录），因此遍历该 user_id 下的全部记录，
+    逐行用各自存储的 cookie + roleId 重抓并覆盖，避免漏掉其它账号。
+    """
+    rows = await NTEKfCookie.list_by_user_id(user_id)
+    if not rows:
+        return f"未找到用户 {user_id} 的刮刮乐绑定记录。"
+
+    lines = [f"用户 {user_id} 共 {len(rows)} 个绑定账号："]
+    for row in rows:
+        role_label = row.uid or "?"
+        if not row.cookie or not row.uid:
+            lines.append(f"• 角色 {role_label}（bot {row.bot_id}）：cookie 或角色 ID 缺失，跳过")
+            continue
+        try:
+            summary = await fetch_scratch_data(row.cookie, row.uid)
+        except Exception as e:
+            logger.exception(f"[刮刮乐] 管理员刷新用户 {user_id} 角色 {row.uid} 失败: {e}")
+            lines.append(f"• 角色 {role_label}：刷新失败 {e}")
+            continue
+
+        s = summary
+        await NTEKfCookie.upsert(
+            row.user_id, row.bot_id,
+            cookie=row.cookie,
+            uid=row.uid,
+            total_spent=s["total_spent"],
+            total_income=s["total_income"],
+            profit=s["total_profit"],
+            return_rate=s["total_return_rate"],
+            raw_data=json.dumps(s, ensure_ascii=False),
+            slice_count=s["slice_count"],
+            last_updated=_fmt(datetime.now(TZ_BEIJING)),
+        )
+        rr = f"{s['total_return_rate']:.2f}%" if s["total_return_rate"] is not None else "N/A"
+        lines.append(
+            f"• 角色 {role_label}：{s['total_spent']:,} 消费 → {s['total_income']:,} 收入，回报率 {rr}"
+        )
+    return "\n".join(lines)
 
 
 async def show_stats(user_id: str, bot_id: str) -> str:
