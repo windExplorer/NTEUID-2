@@ -114,6 +114,7 @@ def _make_role_title_local(role_name, role_id, W, avatar=None):
     mb = maskB.split()[3].point(lambda a: 255 if a > 128 else 0)  # 二值化：立绘内部完全不透明，仅形状取 maskB
     banner = Image.new("RGBA", (W, BH), (0, 0, 0, 0))
     banner.paste(banner_layer, (0, 0), mask=mb)
+    banner.putalpha(mb)  # 强制 banner alpha = 二值化 mask，避免 card_long 自身半透明导致整体发虚
     canvas.alpha_composite(banner, (0, int(8 * W / 1100)))
     # 2) 环形头像（四周留白边距，见 _ringed_avatar）
     av = _ringed_avatar(int(216 * W / 1100), src=avatar)
