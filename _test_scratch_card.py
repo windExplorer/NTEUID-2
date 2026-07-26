@@ -1,11 +1,13 @@
 """刮刮乐统计图渲染测试（纯 PIL，与 scratch_card.py 逻辑一致）"""
-import json, re, math, random
+import json, re, math, random, os
 from pathlib import Path
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 ROOT = Path(__file__).parent
-OUT = ROOT / "test_result" / "scratch_stats.png"
+# 数据目录 / 输出路径可通过环境变量覆盖，便于对比不同账号的数据
+DATA_DIR = Path(os.environ.get("SCRATCH_DATA_DIR", str(ROOT / "cat" / "data")))
+OUT = Path(os.environ.get("SCRATCH_OUT", str(ROOT / "test_result" / "scratch_stats.png")))
 
 def _f(size):
     candidates = [ROOT / "NTEUID" / "utils" / "fonts" / "nte_fonts.ttf", Path(r"C:\Windows\Fonts\msyh.ttc"), Path(r"C:\Windows\Fonts\simhei.ttf")]
@@ -66,6 +68,66 @@ def _load_bg(w, h):
     except:
         return Image.new("RGBA", (w, h), (28, 30, 36))
 
+TEXT2D = ROOT / "NTEUID" / "utils" / "texture2d"
+
+def _ringed_avatar(size=96, src=None):
+    """圆形头像 + 白色描边环（与面板图同款环形头像风格）"""
+    av = src if isinstance(src, Image.Image) else _load_avatar(size)
+    if av is None:
+        return None
+    av = av.resize((size, size), Image.LANCZOS)
+    base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse([0, 0, size, size], fill=255)
+    base.paste(av, (0, 0), mask)
+    ring = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ImageDraw.Draw(ring).ellipse([0, 0, size - 1, size - 1], outline=(255, 255, 255, 230), width=4)
+    base.alpha_composite(ring)
+    return base
+
+def _load_card_long_local():
+    """面板图头部背景：随机一张 card_long 角色长图"""
+    p = ROOT / "NTEUID" / "resource" / "common" / "card_long"
+    files = sorted(p.rglob("*.png")) if p.exists() else []
+    if not files:
+        return Image.new("RGBA", (1100, 199), (40, 44, 52))
+    return Image.open(random.choice(files)).convert("RGBA")
+
+def _make_role_title_local(role_name, role_id, W, avatar=None):
+    """复刻面板图 make_nte_role_title：card_long 横条背景 + maskB 遮罩 + 环形头像 + 昵称 + UID"""
+    H = int(216 * W / 1100)
+    canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    # 1) card_long 横条背景（面板同款比例 + maskB 遮罩）
+    card = _load_card_long_local()
+    card_long = card.resize((int(1528 * W / 1100), int(128 * W / 1100)), Image.LANCZOS)
+    ox, oy = int(-428 * W / 1100), int(56 * W / 1100)
+    banner_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    banner_layer.paste(card_long, (ox, oy), card_long)
+    maskB = Image.open(TEXT2D / "maskB.png").convert("RGBA").resize((W, H), Image.LANCZOS)
+    banner = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    banner.paste(banner_layer, (0, 0), mask=maskB.split()[3])
+    canvas.alpha_composite(banner, (0, 0))
+    # 2) 环形头像
+    av = _ringed_avatar(int(216 * W / 1100), src=avatar)
+    if av is not None:
+        canvas.alpha_composite(av, (0, 0))
+    # 3) 昵称 + UID 文字
+    tx = int(240 * W / 1100)
+    d = ImageDraw.Draw(canvas)
+    d.text((tx, int(98 * W / 1100)), role_name, fill=(255, 255, 255), font=F20, anchor="lm")
+    if role_id:
+        d.text((tx, int(145 * W / 1100)), f"UID {role_id}", fill=(236, 238, 242), font=F14, anchor="lm")
+    return canvas
+
+def _read_role_id():
+    suffix = "2" if "data2" in str(DATA_DIR) else ""
+    role_file = ROOT / "cat" / f"role{suffix}.txt"
+    if not role_file.exists():
+        role_file = ROOT / "cat" / "role.txt"
+    if role_file.exists():
+        return role_file.read_text("utf-8").strip().splitlines()[0].strip()
+    return ""
+
 def _load_avatar(size=60):
     res_dir = ROOT / "NTEUID" / "resource"
     files = sorted((res_dir / "char" / "avatar").rglob("player_*_256.png")) if (res_dir / "char" / "avatar").exists() else []
@@ -81,10 +143,10 @@ def _load_avatar(size=60):
         return None
 
 # 读取数据
-summary = json.loads((ROOT / "cat" / "data" / "summary.json").read_text("utf-8"))
+summary = json.loads((DATA_DIR / "summary.json").read_text("utf-8"))
 all_pages = []
 for sl in summary.get("slices", []):
-    sf = ROOT / "cat" / "data" / f"slice_{sl['key']}.json"
+    sf = DATA_DIR / f"slice_{sl['key']}.json"
     if sf.exists():
         sd = json.loads(sf.read_text("utf-8"))
         all_pages.extend(sd.get("pages", []))
@@ -107,58 +169,58 @@ ti = summary.get("total_income", 0)
 tp = summary.get("total_profit", 0)
 tr = summary.get("total_return_rate")
 total_cnt = len(all_records)
+# 单张消耗按整数分摊：总消耗 // 总次数，余数逐条 +1 方斯
+if total_cnt:
+    _base_cost = ts // total_cnt
+    _rem_cost = ts % total_cnt
+    _cost_of = [_base_cost + (1 if i < _rem_cost else 0) for i in range(total_cnt)]
+else:
+    _cost_of = []
 dates_all = sorted(set((r.get("logTime") or "")[:10] for r in all_records if r.get("logTime")))
 
-weekly = {}
-for r in all_records:
-    lt = (r.get("logTime") or "")[:10]
-    if not lt: continue
-    d = datetime.strptime(lt, "%Y-%m-%d")
-    wk = d.strftime("%Y-W%V")
-    if wk not in weekly:
-        weekly[wk] = {"count": 0, "income": 0, "start": lt, "end": lt}
-    weekly[wk]["count"] += 1
-    weekly[wk]["end"] = lt
-    aw = r.get("award") or ""
-    if "方斯" in aw: weekly[wk]["income"] += _aval(aw)
-weekly_items = sorted(weekly.items(), key=lambda x: x[0])
+# 趋势（按周）：直接复用官方切片的权威汇总，与 scratch_card.py 保持一致
+weekly_items = []
+for sl in summary.get("slices", []):
+    sp = sl.get("spent", 0)
+    inc = sl.get("income", 0)
+    weekly_items.append({
+        "start": (sl.get("start", "") or "")[:10],
+        "end": (sl.get("end", "") or "")[:10],
+        "spent": sp,
+        "income": inc,
+        "profit": inc - sp,
+        "return_rate": (inc / sp * 100) if sp else None,
+    })
 
 card_stats = {}
-for r in all_records:
+for idx, r in enumerate(all_records):
     cid = _sc(r.get("scratchCardId", "") or "未知")
     if cid not in card_stats:
-        card_stats[cid] = {"count": 0, "award_sum": 0, "award_count": 0}
-    card_stats[cid]["count"] += 1
+        card_stats[cid] = {"count": 0, "award_sum": 0, "award_count": 0, "cost_sum": 0}
+    st = card_stats[cid]
+    st["count"] += 1
+    st["cost_sum"] += _cost_of[idx] if _cost_of else 0
     aw = r.get("award") or ""
     if aw and "方斯" in aw:
         v = _aval(aw)
-        card_stats[cid]["award_sum"] += v
-        card_stats[cid]["award_count"] += 1
+        st["award_sum"] += v
+        st["award_count"] += 1
 card_items = sorted(card_stats.items(), key=lambda x: -x[1]["count"])
 
-award_items = sorted(award_counts.items(), key=lambda x: -_aval(x[0]))[:8]
+award_items = sorted(award_counts.items(), key=lambda x: -_aval(x[0]))
 
 # 画布
-_MAX_H = 3000
+_MAX_H = 6000
 canvas = _load_bg(W, _MAX_H)
 overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
 canvas.paste(overlay, (0, 0), overlay)
 d = ImageDraw.Draw(canvas)
 
-# 标题（半透明）
-_title_overlay = Image.new("RGBA", (W, 170), (30, 32, 40, 180))
-canvas.paste(_title_overlay, (0, 0), _title_overlay)
-d.rectangle([M, 168, M + 60, 170], fill=(80, 140, 210))
-d.text((M, 30), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
-avatar = _load_avatar(60)
-if avatar:
-    tw = int(F36.getlength("猫亭刮刮乐"))
-    canvas.paste(avatar, (M + tw + 14, 24), avatar)
-d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(170, 178, 190), font=F16)
-d.text((M, 108), "更新于 2026-07-25 03:40:56 · 角色 215020172015", fill=(130, 138, 150), font=F14)
-if total_cnt:
-    d.text((M, 135), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=(130, 138, 150), font=F13)
-y = 190
+# 顶部统计标题（用户信息卡片已移除，仅本地预览；生产环境待确认后同步）
+y = 20
+d.text((M, y), "猫亭刮刮乐 · 午夜猫刊亭刮刮乐数据统计", fill=TEXT, font=F18)
+d.text((M, y + 30), f"更新于 {summary.get('generated_at', 'N/A')} · 共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=MUTED, font=F14)
+y += 64
 
 # 概况
 stats = [
@@ -186,20 +248,19 @@ d.text((M, y), "趋势（按周）", fill=TEXT, font=F20)
 y += 36
 _line(d, y)
 y += 14
-for idx, (wk, st) in enumerate(weekly_items):
+for idx, st in enumerate(weekly_items):
     c, r = idx % 2, idx // 2
     x = M + c * (cw + 14)
     yy = y + r * 96
     _draw_card(d, (x, yy, x + cw, yy + 78), 12, CARD_FILL)
-    sp = st["count"] * 10000
-    pft = st["income"] - sp
-    rt = st["income"] / sp * 100 if sp else None
+    pft = st["profit"]
+    rt = st["return_rate"]
     d.text((x + 16, yy + 12), f"{st['start']} ~ {st['end']}", fill=MUTED, font=F13)
     d.text((x + 16, yy + 38), f"盈亏: {pft:+,}", fill=GREEN if pft >= 0 else RED, font=F18)
     if rt is not None:
-        d.text((x + 16, yy + 58), f"{st['count']}次 · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
+        d.text((x + 16, yy + 58), f"消耗 {st['spent']:,} · 收入 {st['income']:,} · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
     else:
-        d.text((x + 16, yy + 58), f"{st['count']}次", fill=MUTED, font=F13)
+        d.text((x + 16, yy + 58), f"消耗 {st['spent']:,} · 收入 {st['income']:,}", fill=MUTED, font=F13)
 y += math.ceil(len(weekly_items) / 2) * 96 + 30
 
 # 奖励分布
@@ -237,18 +298,18 @@ y += 12
 _rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
 d.text((M + 20, y + 6), "刮刮卡", fill=TEXT, font=F14)
 d.text((M + 200, y + 6), "次数", fill=TEXT, font=F14)
-d.text((M + 280, y + 6), "中奖次数", fill=TEXT, font=F14)
+d.text((M + 280, y + 6), "中奖/未中", fill=TEXT, font=F14)
 d.text((M + 390, y + 6), "中奖金额", fill=TEXT, font=F14)
 d.text((M + 530, y + 6), "净盈亏", fill=TEXT, font=F14)
 y += 34
 for idx, (cid, st) in enumerate(card_items):
     bg2 = CARD_FILL if idx % 2 == 0 else CARD_ALT
     _rr(d, (M, y, W - M, y + 36), 8, bg2)
-    sp = st["count"] * 10000
+    sp = st["cost_sum"]
     pft = st["award_sum"] - sp
     d.text((M + 14, y + 8), cid, fill=TEXT, font=F13)
     d.text((M + 200, y + 8), str(st["count"]), fill=TEXT, font=F13)
-    d.text((M + 280, y + 8), str(st["award_count"]), fill=MUTED, font=F13)
+    d.text((M + 280, y + 8), f"{st['award_count']}/{st['count'] - st['award_count']}", fill=MUTED, font=F13)
     d.text((M + 390, y + 8), f"{st['award_sum']:,}", fill=GREEN, font=F13)
     d.text((M + 530, y + 8), f"{pft:+,}", fill=GREEN if pft >= 0 else RED, font=F13)
     y += 44

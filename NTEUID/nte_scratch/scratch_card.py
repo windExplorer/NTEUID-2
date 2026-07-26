@@ -8,8 +8,9 @@ from datetime import datetime, timedelta, timezone
 from PIL import Image, ImageDraw
 
 from gsuid_core.logger import logger
+from gsuid_core.models import Event
 
-from ..utils.image import get_nte_bg, draw_card
+from ..utils.image import get_nte_bg, draw_card, make_nte_role_title
 
 TZ_BJ = timezone(timedelta(hours=8))
 SCALE = 2  # 超采样倍数：原生分辨率 ×2，放大后依旧清晰
@@ -132,16 +133,35 @@ def _load_avatar(size=60):
 
 # ── 总计统计图 ──
 
-async def draw_scratch_stats(user_id: str, bot_id: str) -> bytes | str:
+async def draw_scratch_stats(ev: Event) -> bytes | str:
     from ..utils.database import NTEKfCookie
-    row = await NTEKfCookie.get_by_user(user_id, bot_id)
+    row = await NTEKfCookie.get_by_user(ev.user_id, ev.bot_id)
     if row is None or not row.raw_data or row.raw_data == "{}":
         return "暂无刮刮乐数据，请先去私聊【nte添加刮刮乐ck】"
     s = json.loads(row.raw_data)
-    return await _render_stats_image(s, row.last_updated, row.uid)
+    # 用户信息（复用面板图头部：头像 + 昵称 + UID）
+    from gsuid_core.utils.image.image_tools import get_event_avatar
+    from ..utils.database import NTEUser
+    qq_avatar = None
+    try:
+        qq_avatar = await get_event_avatar(ev)
+    except Exception:
+        qq_avatar = None
+    role_name = "玩家"
+    if row.uid:
+        try:
+            mp = await NTEUser.identity_by_uids([row.uid])
+            if row.uid in mp and mp[row.uid][1]:
+                role_name = mp[row.uid][1]
+        except Exception:
+            pass
+    return await _render_stats_image(s, row.last_updated, row.uid, qq_avatar, role_name)
 
 
-async def _render_stats_image(summary: dict, last_updated: str, role_id: str) -> bytes:
+async def _render_stats_image(
+    summary: dict, last_updated: str, role_id: str,
+    qq_avatar=None, role_name: str = "玩家",
+) -> bytes:
     slices = summary.get("slices", [])
     all_pages = []
     for p in summary.get("pages", []):
@@ -165,57 +185,65 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     tp = summary.get("total_profit", 0)
     tr = summary.get("total_return_rate")
     total_cnt = len(all_records)
+    # 单张消耗按整数分摊：总消耗 // 总次数，余数逐条 +1 方斯。
+    # 这样每条记录消耗都是整数，各卡合计精确等于官方总消耗，全程不出现小数。
+    if total_cnt:
+        _base_cost = ts // total_cnt
+        _rem_cost = ts % total_cnt
+        _cost_of = [_base_cost + (1 if i < _rem_cost else 0) for i in range(total_cnt)]
+    else:
+        _cost_of = []
     dates_all = sorted(set((r.get("logTime") or "")[:10] for r in all_records if r.get("logTime")))
 
-    weekly = {}
-    for r in all_records:
-        lt = (r.get("logTime") or "")[:10]
-        if not lt: continue
-        d = datetime.strptime(lt, "%Y-%m-%d")
-        wk = d.strftime("%Y-W%V")
-        if wk not in weekly:
-            weekly[wk] = {"count": 0, "income": 0, "start": lt, "end": lt}
-        weekly[wk]["count"] += 1
-        weekly[wk]["end"] = lt
-        aw = r.get("award") or ""
-        if "方斯" in aw: weekly[wk]["income"] += _aval(aw)
-    weekly_items = sorted(weekly.items(), key=lambda x: x[0])
+    # 趋势（按周）：直接复用官方切片的权威汇总，避免本地估算与总计口径不一致
+    weekly_items = []
+    for sl in summary.get("slices", []):
+        sp = sl.get("spent", 0)
+        inc = sl.get("income", 0)
+        weekly_items.append({
+            "start": (sl.get("start", "") or "")[:10],
+            "end": (sl.get("end", "") or "")[:10],
+            "spent": sp,
+            "income": inc,
+            "profit": inc - sp,
+            "return_rate": (inc / sp * 100) if sp else None,
+        })
 
     card_stats = {}
-    for r in all_records:
+    for idx, r in enumerate(all_records):
         cid = _sc(r.get("scratchCardId", "") or "未知")
         if cid not in card_stats:
-            card_stats[cid] = {"count": 0, "award_sum": 0, "award_count": 0}
-        card_stats[cid]["count"] += 1
+            card_stats[cid] = {"count": 0, "award_sum": 0, "award_count": 0, "cost_sum": 0}
+        st = card_stats[cid]
+        st["count"] += 1
+        st["cost_sum"] += _cost_of[idx] if _cost_of else 0
         aw = r.get("award") or ""
         if aw and "方斯" in aw:
             v = _aval(aw)
-            card_stats[cid]["award_sum"] += v
-            card_stats[cid]["award_count"] += 1
+            st["award_sum"] += v
+            st["award_count"] += 1
     card_items = sorted(card_stats.items(), key=lambda x: -x[1]["count"])
 
-    award_items = sorted(award_counts.items(), key=lambda x: -_aval(x[0]))[:8]
+    award_items = sorted(award_counts.items(), key=lambda x: -_aval(x[0]))
 
-    _MAX_H = 3000
+    _MAX_H = 6000
     canvas = get_nte_bg(W * SCALE, _MAX_H * SCALE, bg="bg3")
     _overlay = Image.new("RGBA", (W * SCALE, _MAX_H * SCALE), (20, 22, 28, 120))
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ScaledDraw(ImageDraw.Draw(canvas), SCALE)
 
-    # 标题（半透明背景让 bg3 透出）
-    _title_overlay = Image.new("RGBA", (W * SCALE, 170 * SCALE), (30, 32, 40, 180))
-    canvas.paste(_title_overlay, (0, 0), _title_overlay)
-    d.rectangle([M, 168, M + 60, 170], fill=(80, 140, 210))
-    d.text((M, 30), "猫亭刮刮乐", fill=(255, 255, 255), font=F36)
-    avatar = _load_avatar(60 * SCALE)
-    if avatar:
-        tw = int(F36.getlength("猫亭刮刮乐"))
-        canvas.paste(avatar, ((M + tw + 14) * SCALE, 24 * SCALE), avatar)
-    d.text((M, 80), "午夜猫刊亭刮刮乐数据统计", fill=(170, 178, 190), font=F16)
-    d.text((M, 108), f"更新于 {last_updated} · 角色 {role_id}", fill=(130, 138, 150), font=F14)
-    if total_cnt:
-        d.text((M, 135), f"共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=(130, 138, 150), font=F13)
-    y = 190
+    # 顶部用户信息（复用面板图头部：card_long 背景横条 + 环形头像 + 昵称 + UID）
+    if not isinstance(qq_avatar, Image.Image):
+        qq_avatar = _load_avatar(96) or Image.new("RGBA", (96, 96), (70, 74, 84))
+    header_img = make_nte_role_title(qq_avatar, role_name, role_id)
+    header_img = header_img.resize(
+        (W, int(header_img.height * W / header_img.width)), Image.LANCZOS
+    )
+    canvas.paste(header_img, (0, 0), header_img)
+    y = header_img.height + 14
+    d.text((M, y), "猫亭刮刮乐 · 午夜猫刊亭刮刮乐数据统计", fill=TEXT, font=F18)
+    d.text((M, y + 30), f"更新于 {last_updated} · 共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=MUTED, font=F14)
+    y += 64
 
     # 概况
     stats = [
@@ -243,20 +271,19 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     y += 36
     _line(d, y)
     y += 14
-    for idx, (wk, st) in enumerate(weekly_items):
+    for idx, st in enumerate(weekly_items):
         c, r = idx % 2, idx // 2
         x = M + c * (cw + 14)
         yy = y + r * 96
         draw_card(d, (x, yy, x + cw, yy + 78), radius=12, fill=CARD)
-        sp = st["count"] * 10000
-        pft = st["income"] - sp
-        rt = st["income"] / sp * 100 if sp else None
+        pft = st["profit"]
+        rt = st["return_rate"]
         d.text((x + 16, yy + 12), f"{st['start']} ~ {st['end']}", fill=MUTED, font=F13)
         d.text((x + 16, yy + 38), f"盈亏: {pft:+,}", fill=GREEN if pft >= 0 else RED, font=F18)
         if rt is not None:
-            d.text((x + 16, yy + 58), f"{st['count']}次 · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
+            d.text((x + 16, yy + 58), f"消耗 {st['spent']:,} · 收入 {st['income']:,} · 回报率 {rt:.1f}%", fill=MUTED, font=F13)
         else:
-            d.text((x + 16, yy + 58), f"{st['count']}次", fill=MUTED, font=F13)
+            d.text((x + 16, yy + 58), f"消耗 {st['spent']:,} · 收入 {st['income']:,}", fill=MUTED, font=F13)
     y += math.ceil(len(weekly_items) / 2) * 96 + 30
 
     # 奖励分布
@@ -294,18 +321,18 @@ async def _render_stats_image(summary: dict, last_updated: str, role_id: str) ->
     SD.rr(d, (M, y, W - M, y + 30), 8, (55, 58, 66))
     d.text((M + 20, y + 6), "刮刮卡", fill=TEXT, font=F14)
     d.text((M + 200, y + 6), "次数", fill=TEXT, font=F14)
-    d.text((M + 280, y + 6), "中奖次数", fill=TEXT, font=F14)
+    d.text((M + 280, y + 6), "中奖/未中", fill=TEXT, font=F14)
     d.text((M + 390, y + 6), "中奖金额", fill=TEXT, font=F14)
     d.text((M + 530, y + 6), "净盈亏", fill=TEXT, font=F14)
     y += 34
     for idx, (cid, st) in enumerate(card_items):
         bg2 = CARD if idx % 2 == 0 else CARD_ALT
         SD.rr(d, (M, y, W - M, y + 36), 8, bg2)
-        sp = st["count"] * 10000
+        sp = st["cost_sum"]
         pft = st["award_sum"] - sp
         d.text((M + 14, y + 8), cid, fill=TEXT, font=F13)
         d.text((M + 200, y + 8), str(st["count"]), fill=TEXT, font=F13)
-        d.text((M + 280, y + 8), str(st["award_count"]), fill=MUTED, font=F13)
+        d.text((M + 280, y + 8), f"{st['award_count']}/{st['count'] - st['award_count']}", fill=MUTED, font=F13)
         d.text((M + 390, y + 8), f"{st['award_sum']:,}", fill=GREEN, font=F13)
         d.text((M + 530, y + 8), f"{pft:+,}", fill=GREEN if pft >= 0 else RED, font=F13)
         y += 44

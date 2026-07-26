@@ -80,7 +80,7 @@ async def nte_scratch_refresh(bot: Bot, ev: Event):
 
 @sv_scratch.on_fullmatch(("刮刮乐统计", "刮刮乐图表", "刮刮乐"))
 async def nte_scratch_stats(bot: Bot, ev: Event):
-    res = await draw_scratch_stats(ev.user_id, ev.bot_id)
+    res = await draw_scratch_stats(ev)
     if isinstance(res, str):
         await bot.send(res)
     else:

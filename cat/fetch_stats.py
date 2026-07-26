@@ -159,10 +159,24 @@ def fetch_slice(role_id: str, start: datetime, end: datetime) -> dict:
 
 
 def main():
-    cookie = load_cookie()
-    role_id = load_role_id()
+    import argparse
+    ap = argparse.ArgumentParser(description="午夜猫刊亭刮刮乐统计抓取")
+    ap.add_argument("--cookie", default=COOKIE_FILE, help="kf 会话 cookie 文件（默认 cat/cookie.txt）")
+    ap.add_argument("--role", default=ROLE_FILE, help="异环角色 id 文件（默认 cat/role.txt）")
+    ap.add_argument("--data", default=DATA_DIR, help="数据输出目录（默认 cat/data）")
+    args = ap.parse_args()
+
+    with open(args.cookie, encoding="utf-8") as f:
+        cookie = f.read().strip()
+    if not os.path.exists(args.role):
+        raise SystemExit(f"缺少角色文件: {args.role}")
+    with open(args.role, encoding="utf-8") as f:
+        role_id = f.read().strip().splitlines()[0].strip()
+    if not role_id:
+        raise SystemExit(f"角色文件为空: {args.role}")
+    data_dir = args.data
     HEADERS["Cookie"] = cookie
-    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
 
     end = end_of_range()
     slices = build_slices(START, end)
@@ -171,7 +185,7 @@ def main():
     results = []
     for i, (s, e) in enumerate(slices, 1):
         key = slice_key(s, e)
-        out_path = os.path.join(DATA_DIR, f"slice_{key}.json")
+        out_path = os.path.join(data_dir, f"slice_{key}.json")
         if os.path.exists(out_path):
             print(f"[{i}/{len(slices)}] 跳过已存在 {key}")
             with open(out_path, encoding="utf-8") as f:
@@ -206,7 +220,7 @@ def main():
             {k: v for k, v in r.items() if k != "pages"} for r in results
         ],
     }
-    summary_path = os.path.join(DATA_DIR, "summary.json")
+    summary_path = os.path.join(data_dir, "summary.json")
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
     print(f"\n整合结果已写入 {summary_path}")
