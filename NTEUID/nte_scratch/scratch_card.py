@@ -312,7 +312,7 @@ async def _render_stats_image(
         d.text((x + 18, yy + 12), lb, fill=MUTED, font=F14)
         d.text((x + 18, yy + 44), val, fill=clr, font=F30)
         if unit:
-            d.text((x + 18 + F30.getlength(val) + 4, yy + 48), unit, fill=DIM, font=F13)
+            d.text((x + 18 + F30.getlength(val) // SCALE + 4, yy + 48), unit, fill=DIM, font=F13)
     y += 300 + 30
 
     # 每周趋势
@@ -461,7 +461,7 @@ async def _render_today_image(today: dict, today_str: str) -> bytes:
     avatar = _load_avatar(56 * SCALE)
     if avatar:
         tw = int(F36.getlength("今日刮刮乐"))
-        canvas.paste(avatar, ((M + tw + 14) * SCALE, 24 * SCALE), avatar)
+        canvas.paste(avatar, ((M + 14) * SCALE + tw, 24 * SCALE), avatar)
     tt = M + tw + 80 if avatar else M + 220
     SD.rr(d, (tt, 34, tt + 80, 58), 12, (50, 54, 64))
     d.text((tt + 10, 37), today_str, fill=GOLD, font=F16)
