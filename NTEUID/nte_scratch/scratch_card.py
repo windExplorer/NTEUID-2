@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw
 from gsuid_core.logger import logger
 from gsuid_core.models import Event
 
-from ..utils.image import get_nte_bg, draw_card, make_nte_role_title
+from ..utils.image import get_nte_bg, draw_card, make_nte_role_title, _load_card_long, TEXT_PATH
 
 TZ_BJ = timezone(timedelta(hours=8))
 SCALE = 2  # 超采样倍数：原生分辨率 ×2，放大后依旧清晰
@@ -131,6 +131,57 @@ def _load_avatar(size=60):
         return None
 
 
+def _ringed_avatar_prod(size, src=None):
+    """圆形头像 + 白色描边环（大边距版，SCALE 坐标下绘制）"""
+    av = src if isinstance(src, Image.Image) else _load_avatar(size)
+    if av is None:
+        return None
+    inner = int(size * 4 / 5)
+    off = (size - inner) // 2
+    av = av.resize((inner, inner), Image.LANCZOS)
+    base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    mask = Image.new("L", (inner, inner), 0)
+    ImageDraw.Draw(mask).ellipse([0, 0, inner, inner], fill=255)
+    base.paste(av, (off, off), mask)
+    ring = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ImageDraw.Draw(ring).ellipse(
+        [off, off, off + inner - 1, off + inner - 1],
+        outline=(255, 255, 255, 230), width=max(2, SCALE * 2),
+    )
+    base.alpha_composite(ring)
+    return base
+
+
+def _make_role_title_prod(W, role_name, role_id, avatar):
+    """面板图同款风格头部：card_long 不透明横条 + 大边距环形头像 + 昵称 + UID（SCALE 坐标）"""
+    w = W * SCALE
+    H = int(216 * w / 1100)
+    BH = int(199 * w / 1100)
+    canvas = Image.new("RGBA", (w, H), (0, 0, 0, 0))
+    # 1) card_long 横条背景（199 比例 + maskB 二值化不透明 + 下移 8）
+    card = _load_card_long(None)
+    card_long = card.resize((int(1528 * w / 1100), int(128 * w / 1100)), Image.LANCZOS)
+    ox, oy = int(-428 * w / 1100), int(56 * w / 1100)
+    banner_layer = Image.new("RGBA", (w, BH), (0, 0, 0, 0))
+    banner_layer.paste(card_long, (ox, oy), card_long)
+    maskB = Image.open(TEXT_PATH / "maskB.png").convert("RGBA").resize((w, BH), Image.LANCZOS)
+    mb = maskB.split()[3].point(lambda a: 255 if a > 128 else 0)
+    banner = Image.new("RGBA", (w, BH), (0, 0, 0, 0))
+    banner.paste(banner_layer, (0, 0), mask=mb)
+    canvas.alpha_composite(banner, (0, int(8 * w / 1100)))
+    # 2) 环形头像（大边距）
+    av = _ringed_avatar_prod(int(216 * w / 1100), src=avatar)
+    if av is not None:
+        canvas.alpha_composite(av, (0, 0))
+    # 3) 昵称 + UID 文字（用已含 SCALE 的字体，逻辑坐标）
+    tx = int(240 * w / 1100)
+    d = ImageDraw.Draw(canvas)
+    d.text((tx, int(98 * w / 1100)), role_name, fill=(255, 255, 255), font=F20, anchor="lm")
+    if role_id:
+        d.text((tx, int(153 * w / 1100)), f"UID {role_id}", fill=(236, 238, 242), font=F14, anchor="lm")
+    return canvas
+
+
 # ── 总计统计图 ──
 
 async def draw_scratch_stats(ev: Event) -> bytes | str:
@@ -232,15 +283,12 @@ async def _render_stats_image(
     canvas.paste(_overlay, (0, 0), _overlay)
     d = ScaledDraw(ImageDraw.Draw(canvas), SCALE)
 
-    # 顶部用户信息（复用面板图头部：card_long 背景横条 + 环形头像 + 昵称 + UID）
+    # 顶部用户信息（面板图同款风格：card_long 不透明横条 + 大边距环形头像 + 昵称 + UID）
     if not isinstance(qq_avatar, Image.Image):
         qq_avatar = _load_avatar(96) or Image.new("RGBA", (96, 96), (70, 74, 84))
-    header_img = make_nte_role_title(qq_avatar, role_name, role_id)
-    header_img = header_img.resize(
-        (W, int(header_img.height * W / header_img.width)), Image.LANCZOS
-    )
+    header_img = _make_role_title_prod(W, role_name, role_id, qq_avatar)
     canvas.paste(header_img, (0, 0), header_img)
-    y = header_img.height + 14
+    y = header_img.height // SCALE + 14
     d.text((M, y), "猫亭刮刮乐 · 午夜猫刊亭刮刮乐数据统计", fill=TEXT, font=F18)
     d.text((M, y + 30), f"更新于 {last_updated} · 共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=MUTED, font=F14)
     y += 64

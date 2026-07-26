@@ -71,17 +71,23 @@ def _load_bg(w, h):
 TEXT2D = ROOT / "NTEUID" / "utils" / "texture2d"
 
 def _ringed_avatar(size=96, src=None):
-    """圆形头像 + 白色描边环（与面板图同款环形头像风格）"""
+    """圆形头像 + 白色描边环（面板图同款：头像圆直径小于块，四周留白边距）"""
     av = src if isinstance(src, Image.Image) else _load_avatar(size)
     if av is None:
         return None
-    av = av.resize((size, size), Image.LANCZOS)
+    # 头像圆直径明显小于块，四周留更大边距（用户要求间隙更大）
+    inner = int(size * 4 / 5)
+    off = (size - inner) // 2
+    av = av.resize((inner, inner), Image.LANCZOS)
     base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(mask).ellipse([0, 0, size, size], fill=255)
-    base.paste(av, (0, 0), mask)
+    mask = Image.new("L", (inner, inner), 0)
+    ImageDraw.Draw(mask).ellipse([0, 0, inner, inner], fill=255)
+    base.paste(av, (off, off), mask)
     ring = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    ImageDraw.Draw(ring).ellipse([0, 0, size - 1, size - 1], outline=(255, 255, 255, 230), width=4)
+    ImageDraw.Draw(ring).ellipse(
+        [off, off, off + inner - 1, off + inner - 1],
+        outline=(255, 255, 255, 230), width=4,
+    )
     base.alpha_composite(ring)
     return base
 
@@ -94,29 +100,31 @@ def _load_card_long_local():
     return Image.open(random.choice(files)).convert("RGBA")
 
 def _make_role_title_local(role_name, role_id, W, avatar=None):
-    """复刻面板图 make_nte_role_title：card_long 横条背景 + maskB 遮罩 + 环形头像 + 昵称 + UID"""
-    H = int(216 * W / 1100)
+    """复刻面板图 make_nte_role_title：card_long 横条背景(199高+下移8) + maskB 遮罩 + 环形头像 + 昵称 + UID"""
+    H = int(216 * W / 1100)         # canvas 总高，头像占满
+    BH = int(199 * W / 1100)        # banner 区域高度（原版 199，非 216）——决定圆角形状
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    # 1) card_long 横条背景（面板同款比例 + maskB 遮罩）
+    # 1) card_long 横条背景（面板同款 1528×128 比例 + maskB 遮罩，下移 8）
     card = _load_card_long_local()
     card_long = card.resize((int(1528 * W / 1100), int(128 * W / 1100)), Image.LANCZOS)
     ox, oy = int(-428 * W / 1100), int(56 * W / 1100)
-    banner_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    banner_layer = Image.new("RGBA", (W, BH), (0, 0, 0, 0))
     banner_layer.paste(card_long, (ox, oy), card_long)
-    maskB = Image.open(TEXT2D / "maskB.png").convert("RGBA").resize((W, H), Image.LANCZOS)
-    banner = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    banner.paste(banner_layer, (0, 0), mask=maskB.split()[3])
-    canvas.alpha_composite(banner, (0, 0))
-    # 2) 环形头像
+    maskB = Image.open(TEXT2D / "maskB.png").convert("RGBA").resize((W, BH), Image.LANCZOS)
+    mb = maskB.split()[3].point(lambda a: 255 if a > 128 else 0)  # 二值化：立绘内部完全不透明，仅形状取 maskB
+    banner = Image.new("RGBA", (W, BH), (0, 0, 0, 0))
+    banner.paste(banner_layer, (0, 0), mask=mb)
+    canvas.alpha_composite(banner, (0, int(8 * W / 1100)))
+    # 2) 环形头像（四周留白边距，见 _ringed_avatar）
     av = _ringed_avatar(int(216 * W / 1100), src=avatar)
     if av is not None:
         canvas.alpha_composite(av, (0, 0))
-    # 3) 昵称 + UID 文字
+    # 3) 昵称 + UID 文字（原版：昵称(240,98)，UID(240,145→下移8后绝对153)）
     tx = int(240 * W / 1100)
     d = ImageDraw.Draw(canvas)
     d.text((tx, int(98 * W / 1100)), role_name, fill=(255, 255, 255), font=F20, anchor="lm")
     if role_id:
-        d.text((tx, int(145 * W / 1100)), f"UID {role_id}", fill=(236, 238, 242), font=F14, anchor="lm")
+        d.text((tx, int(153 * W / 1100)), f"UID {role_id}", fill=(236, 238, 242), font=F14, anchor="lm")
     return canvas
 
 def _read_role_id():
@@ -216,8 +224,11 @@ overlay = Image.new("RGBA", (W, _MAX_H), (20, 22, 28, 120))
 canvas.paste(overlay, (0, 0), overlay)
 d = ImageDraw.Draw(canvas)
 
-# 顶部统计标题（用户信息卡片已移除，仅本地预览；生产环境待确认后同步）
-y = 20
+# 顶部用户信息（面板图同款：card_long 背景横条 + 环形头像 + 昵称 + UID）——仅本地预览，生产环境待确认后同步
+role_id = _read_role_id()
+header_img = _make_role_title_local("玩家", role_id, W, avatar=_load_avatar(140))
+canvas.paste(header_img, (0, 0), header_img)
+y = header_img.height + 14
 d.text((M, y), "猫亭刮刮乐 · 午夜猫刊亭刮刮乐数据统计", fill=TEXT, font=F18)
 d.text((M, y + 30), f"更新于 {summary.get('generated_at', 'N/A')} · 共 {total_cnt} 条记录 · {len(dates_all)} 天", fill=MUTED, font=F14)
 y += 64
