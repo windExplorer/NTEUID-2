@@ -129,7 +129,8 @@ def _make_role_title_local(role_name, role_id, W, avatar=None):
     return canvas
 
 def _read_role_id():
-    suffix = "2" if "data2" in str(DATA_DIR) else ""
+    m = re.search(r"data(\d+)", str(DATA_DIR))
+    suffix = m.group(1) if m else ""
     role_file = ROOT / "cat" / f"role{suffix}.txt"
     if not role_file.exists():
         role_file = ROOT / "cat" / "role.txt"

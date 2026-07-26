@@ -1161,7 +1161,10 @@ class NTEKfCookie(BaseIDModel, table=True):
         bot_id: str,
         **kwargs: Any,
     ) -> T_NTEKfCookie:
-        row = await cls.get_by_user(user_id, bot_id)
+        result = await session.execute(
+            select(cls).where(col(cls.user_id) == user_id, col(cls.bot_id) == bot_id)
+        )
+        row = result.scalar_one_or_none()
         if row is None:
             row = cls(user_id=user_id, bot_id=bot_id, **kwargs)
             session.add(row)
