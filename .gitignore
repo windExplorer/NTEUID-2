@@ -20,8 +20,5 @@ test_result/
 # 第三方克隆仓库（yihuan-cat-kiosk-stats，不纳入版本控制）
 yihuan-cat-kiosk-stats/
 
-# cat 工具：凭据与抓取产物不纳入版本控制
-cat/cookie.txt
-cat/role.txt
-cat/data/
-cat/*_out.txt
+# cat 工具：凭据与抓取产物不纳入版本控制（整个目录忽略）
+cat/
