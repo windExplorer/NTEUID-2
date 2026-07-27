@@ -160,7 +160,7 @@ def _collect_records(slice_data: dict) -> list[dict]:
 async def fetch_scratch_data(cookie: str, role_id: str) -> dict[str, Any]:
     """抓取全部刮刮乐数据（从 2026-07-02 起），返回汇总结果。"""
     start = datetime(2026, 7, 2, 0, 0, 0, tzinfo=TZ_BEIJING)
-    end = datetime.now(TZ_BEIJING).replace(hour=0, minute=0, second=0, microsecond=0)
+    end = datetime.now(TZ_BEIJING)
     slices = _build_slices(start, end)
     results: list[dict] = []
     async with httpx.AsyncClient(verify=False) as client:
